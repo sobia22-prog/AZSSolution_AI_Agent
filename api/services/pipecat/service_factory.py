@@ -293,8 +293,10 @@ def create_tts_service(user_config, audio_config: "AudioConfig"):
         user_config: User configuration containing TTS settings
         transport_type: Type of transport (e.g., 'twilio', 'webrtc')
     """
+    tts_voice = getattr(user_config.tts, "voice", None)
     logger.info(
-        f"Creating TTS service: provider={user_config.tts.provider}, model={user_config.tts.model}"
+        f"Creating TTS service: provider={user_config.tts.provider}, "
+        f"model={user_config.tts.model}, voice={tts_voice}"
     )
     # Create function call filter to prevent TTS from speaking function call tags
     xml_function_tag_filter = XMLFunctionTagFilter()
@@ -312,13 +314,17 @@ def create_tts_service(user_config, audio_config: "AudioConfig"):
         if base_url:
             _validate_runtime_service_url(base_url, "base_url")
             kwargs["base_url"] = base_url
+        openai_voice = tts_voice or "nova"
+        openai_speed = getattr(user_config.tts, "speed", None)
+        settings_kwargs: dict = {
+            "model": user_config.tts.model,
+            "voice": openai_voice,
+        }
+        if openai_speed is not None:
+            settings_kwargs["speed"] = openai_speed
         return OpenAITTSService(
             api_key=user_config.tts.api_key,
-            settings=OpenAITTSSettings(
-                model=user_config.tts.model,
-                voice=getattr(user_config.tts, "voice", "nova"),
-                speed=getattr(user_config.tts, "speed", 1.0),
-            ),
+            settings=OpenAITTSSettings(**settings_kwargs),
             text_filters=[xml_function_tag_filter],
             skip_aggregator_types=["recording_router", "recording"],
             silence_time_s=1.0,

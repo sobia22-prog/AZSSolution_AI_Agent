@@ -415,7 +415,16 @@ export function ServiceConfigurationForm({
         });
     };
 
-    const buildServiceConfig = (service: ServiceSegment, data: FormValues) => {
+    const getConfigFields = (service: ServiceSegment): string[] => {
+        const currentProvider = serviceProviders[service];
+        const providerSchema = schemas?.[service]?.[currentProvider];
+        if (!providerSchema) return [];
+        return Object.keys(providerSchema.properties).filter(
+            field => field !== "provider" && field !== "api_key"
+        );
+    };
+
+    const buildServiceConfig = (service: ServiceSegment) => {
         const config: Record<string, string | number | string[]> = {
             provider: serviceProviders[service],
         };
@@ -423,16 +432,18 @@ export function ServiceConfigurationForm({
         if (keys.length > 0) {
             config.api_key = mode === 'override' ? keys[0] : keys;
         }
-        Object.entries(data).forEach(([property, value]) => {
-            if (!property.startsWith(`${service}_`)) return;
-            const field = property.slice(service.length + 1);
-            if (field === "api_key" || field === "provider") return;
-            config[field] = value as string | number;
-        });
+        // Dropdown fields (voice, model, etc.) use setValue instead of register,
+        // so read the live form state via getValues rather than handleSubmit data.
+        for (const field of getConfigFields(service)) {
+            const value = getValues(`${service}_${field}`);
+            if (value !== undefined && value !== null && value !== "") {
+                config[field] = value as string | number;
+            }
+        }
         return config;
     };
 
-    const onSubmit = async (data: FormValues) => {
+    const onSubmit = async (_data: FormValues) => {
         setApiError(null);
         setIsSaving(true);
 
@@ -443,7 +454,7 @@ export function ServiceConfigurationForm({
                 const services = isRealtime ? ["realtime", "llm"] : ["llm", "tts", "stt"];
                 for (const svc of services) {
                     if (enabledOverrides[svc]) {
-                        modelOverrides[svc] = buildServiceConfig(svc as ServiceSegment, data);
+                        modelOverrides[svc] = buildServiceConfig(svc as ServiceSegment);
                     }
                 }
                 // Include is_realtime if it differs from global
@@ -457,17 +468,17 @@ export function ServiceConfigurationForm({
             } else {
                 // Global mode: save all services
                 const saveConfig: Record<string, unknown> = {
-                    llm: buildServiceConfig("llm", data),
-                    tts: buildServiceConfig("tts", data),
-                    stt: buildServiceConfig("stt", data),
+                    llm: buildServiceConfig("llm"),
+                    tts: buildServiceConfig("tts"),
+                    stt: buildServiceConfig("stt"),
                     is_realtime: isRealtime,
                 };
                 if (serviceProviders.realtime) {
-                    saveConfig.realtime = buildServiceConfig("realtime", data);
+                    saveConfig.realtime = buildServiceConfig("realtime");
                 }
                 const embeddingsKeys = apiKeys.embeddings.map(k => k.trim()).filter(k => k.length > 0);
                 if (embeddingsKeys.length > 0) {
-                    saveConfig.embeddings = buildServiceConfig("embeddings", data);
+                    saveConfig.embeddings = buildServiceConfig("embeddings");
                 }
                 await onSave(saveConfig);
             }
@@ -481,15 +492,6 @@ export function ServiceConfigurationForm({
         } finally {
             setIsSaving(false);
         }
-    };
-
-    const getConfigFields = (service: ServiceSegment): string[] => {
-        const currentProvider = serviceProviders[service];
-        const providerSchema = schemas?.[service]?.[currentProvider];
-        if (!providerSchema) return [];
-        return Object.keys(providerSchema.properties).filter(
-            field => field !== "provider" && field !== "api_key"
-        );
     };
 
     const renderServiceFields = (service: ServiceSegment) => {
