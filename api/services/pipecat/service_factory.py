@@ -316,7 +316,7 @@ def create_tts_service(user_config, audio_config: "AudioConfig"):
             api_key=user_config.tts.api_key,
             settings=OpenAITTSSettings(
                 model=user_config.tts.model,
-                voice=getattr(user_config.tts, "voice", "alloy"),
+                voice=getattr(user_config.tts, "voice", "nova"),
                 speed=getattr(user_config.tts, "speed", 1.0),
             ),
             text_filters=[xml_function_tag_filter],

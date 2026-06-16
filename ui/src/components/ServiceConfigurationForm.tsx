@@ -73,7 +73,7 @@ const OVERRIDE_REALTIME_TABS: { key: ServiceSegment; label: string }[] = [
     { key: "llm", label: "LLM" },
 ];
 
-// Display names for Sarvam voices
+// Display names for Sarvam and OpenAI voices
 const VOICE_DISPLAY_NAMES: Record<string, string> = {
     "anushka": "Anushka (Female)",
     "manisha": "Manisha (Female)",
@@ -82,6 +82,19 @@ const VOICE_DISPLAY_NAMES: Record<string, string> = {
     "abhilash": "Abhilash (Male)",
     "karun": "Karun (Male)",
     "hitesh": "Hitesh (Male)",
+    "alloy": "Alloy (Neutral)",
+    "ash": "Ash (Male)",
+    "ballad": "Ballad (Warm)",
+    "cedar": "Cedar (Male)",
+    "coral": "Coral (Female)",
+    "echo": "Echo (Male)",
+    "fable": "Fable (British)",
+    "marin": "Marin (Female)",
+    "nova": "Nova (Female)",
+    "onyx": "Onyx (Deep male)",
+    "sage": "Sage (Calm)",
+    "shimmer": "Shimmer (Soft female)",
+    "verse": "Verse (Expressive)",
 };
 
 export interface ServiceConfigurationFormProps {

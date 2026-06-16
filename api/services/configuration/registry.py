@@ -870,7 +870,37 @@ class GoogleTTSConfiguration(BaseTTSConfiguration):
     )
 
 
-OPENAI_TTS_MODELS = ["gpt-4o-mini-tts"]
+OPENAI_TTS_MODELS = ["gpt-4o-mini-tts", "tts-1-hd", "tts-1"]
+
+# All voices supported by gpt-4o-mini-tts (see OpenAI TTS docs).
+OPENAI_TTS_VOICES = [
+    "alloy",
+    "ash",
+    "ballad",
+    "cedar",
+    "coral",
+    "echo",
+    "fable",
+    "marin",
+    "nova",
+    "onyx",
+    "sage",
+    "shimmer",
+    "verse",
+]
+
+# Subset supported by legacy tts-1 / tts-1-hd models.
+OPENAI_TTS_LEGACY_VOICES = [
+    "alloy",
+    "ash",
+    "coral",
+    "echo",
+    "fable",
+    "nova",
+    "onyx",
+    "sage",
+    "shimmer",
+]
 
 
 @register_tts
@@ -880,11 +910,22 @@ class OpenAITTSService(BaseTTSConfiguration):
     model: str = Field(
         default="gpt-4o-mini-tts",
         description="OpenAI TTS model.",
-        json_schema_extra={"examples": OPENAI_TTS_MODELS},
+        json_schema_extra={
+            "examples": OPENAI_TTS_MODELS,
+            "allow_custom_input": True,
+        },
     )
     voice: str = Field(
-        default="alloy",
+        default="nova",
         description="OpenAI TTS voice name.",
+        json_schema_extra={
+            "examples": OPENAI_TTS_VOICES,
+            "model_options": {
+                "gpt-4o-mini-tts": OPENAI_TTS_VOICES,
+                "tts-1": OPENAI_TTS_LEGACY_VOICES,
+                "tts-1-hd": OPENAI_TTS_LEGACY_VOICES,
+            },
+        },
     )
     speed: float = Field(
         default=1.0,

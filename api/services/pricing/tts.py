@@ -15,6 +15,8 @@ from .models import CharacterPricingModel
 TTS_PRICING: Dict[str, Dict[str, CharacterPricingModel]] = {
     ServiceProviders.OPENAI: {
         "gpt-4o-mini-tts": CharacterPricingModel(Decimal("0.6") / 1_00_00_000),
+        "tts-1": CharacterPricingModel(Decimal("15") / 1_000_000),
+        "tts-1-hd": CharacterPricingModel(Decimal("30") / 1_000_000),
         "default": CharacterPricingModel(Decimal("0.6") / 1_00_00_000),
     },
     ServiceProviders.DEEPGRAM: {
