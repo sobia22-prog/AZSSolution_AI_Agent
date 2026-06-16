@@ -444,6 +444,7 @@ export function ServiceConfigurationForm({
     };
 
     const onSubmit = async (_data: FormValues) => {
+        void _data;
         setApiError(null);
         setIsSaving(true);
 
