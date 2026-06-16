@@ -314,7 +314,11 @@ def create_tts_service(user_config, audio_config: "AudioConfig"):
             kwargs["base_url"] = base_url
         return OpenAITTSService(
             api_key=user_config.tts.api_key,
-            settings=OpenAITTSSettings(model=user_config.tts.model),
+            settings=OpenAITTSSettings(
+                model=user_config.tts.model,
+                voice=getattr(user_config.tts, "voice", "alloy"),
+                speed=getattr(user_config.tts, "speed", 1.0),
+            ),
             text_filters=[xml_function_tag_filter],
             skip_aggregator_types=["recording_router", "recording"],
             silence_time_s=1.0,

@@ -289,6 +289,24 @@ def test_runtime_blocks_openai_tts_localhost_base_url_in_saas(monkeypatch):
     assert "localhost" in exc_info.value.detail
 
 
+def test_openai_tts_service_instantiation_config(monkeypatch):
+    monkeypatch.setattr("api.utils.url_security.DEPLOYMENT_MODE", "oss")
+    user_config = SimpleNamespace(
+        tts=SimpleNamespace(
+            provider=ServiceProviders.OPENAI.value,
+            api_key="test-key",
+            model="gpt-4o-mini-tts",
+            voice="cedar",
+            speed=1.5,
+            base_url="https://api.openai.com/v1",
+        )
+    )
+    service = create_tts_service(user_config, audio_config=None)
+    assert service._settings.model == "gpt-4o-mini-tts"
+    assert service._settings.voice == "cedar"
+    assert service._settings.speed == 1.5
+
+
 def test_embedding_service_blocks_private_base_url_in_saas(monkeypatch):
     monkeypatch.setattr("api.utils.url_security.DEPLOYMENT_MODE", "saas")
 

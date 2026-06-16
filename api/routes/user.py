@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import List, Literal, Optional, TypedDict, Union
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from loguru import logger
 from pydantic import BaseModel, ValidationError
 
@@ -38,7 +38,8 @@ class DefaultConfigurationsResponse(TypedDict):
 
 
 @router.get("/configurations/defaults")
-async def get_default_configurations() -> DefaultConfigurationsResponse:
+async def get_default_configurations(response: Response) -> DefaultConfigurationsResponse:
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     configurations = {
         "llm": {
             provider: model_cls.model_json_schema()

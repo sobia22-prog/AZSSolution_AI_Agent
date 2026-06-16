@@ -886,6 +886,12 @@ class OpenAITTSService(BaseTTSConfiguration):
         default="alloy",
         description="OpenAI TTS voice name.",
     )
+    speed: float = Field(
+        default=1.0,
+        ge=0.25,
+        le=4.0,
+        description="Speed of the voice (0.25 to 4.0).",
+    )
     base_url: str = Field(
         default="https://api.openai.com/v1",
         description="Override only if using an OpenAI-compatible API (e.g. local TTS, proxy).",

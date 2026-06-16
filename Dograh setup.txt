@@ -9,14 +9,20 @@ Steps:
 
 
 Dograh voice api key
-mps_sk_Z2LPyWsBdswcMeiGx2z06vcTnSpbp5e4
+YOUR_DOGRAH_VOICE_API_KEY
+
 
 Open ai api key
-sk-svcacct-zCxNxnIXOcZ-w1p01u9DntGOTLvGytqlmQJuJCVBUPaESnSJV0w-88vVH40dr7lEmirQLOLu11T
-3BlbkFJBsWcfNrRXejE3vKc4OCqBr82CmD0BcZdB_pjNG2Je8KN97MZLBzbrmmyDLTu01UH0aDth94dAA
+YOUR_OPENAI_API_KEY
+
 
 Deepgram voice api key
-add917f4c639b4c4d0ff61dc5ffd853f19c9dee6
+YOUR_DEEPGRAM_VOICE_API_KEY
+
 
 ElevenLabs api key
-sk_b954668f4cac580463f66d6ce6ddc8eb1c222692494e1498
+YOUR_ELEVENLABS_API_KEY
+
+
+Telnyx number api key
+YOUR_TELNYX_API_KEY
