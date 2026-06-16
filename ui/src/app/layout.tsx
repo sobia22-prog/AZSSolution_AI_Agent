@@ -30,6 +30,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Dograh",
   description: "Open Source Voice Assistant Workflow Builder",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
