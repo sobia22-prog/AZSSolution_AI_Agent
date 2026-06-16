@@ -324,6 +324,7 @@ def create_tts_service(user_config, audio_config: "AudioConfig"):
             settings_kwargs["speed"] = openai_speed
         return OpenAITTSService(
             api_key=user_config.tts.api_key,
+            sample_rate=24000,
             settings=OpenAITTSSettings(**settings_kwargs),
             text_filters=[xml_function_tag_filter],
             skip_aggregator_types=["recording_router", "recording"],
