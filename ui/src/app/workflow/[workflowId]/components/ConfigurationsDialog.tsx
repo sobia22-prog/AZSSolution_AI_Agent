@@ -47,6 +47,9 @@ export const ConfigurationsDialog = ({
     const [contextCompactionEnabled, setContextCompactionEnabled] = useState<boolean>(
         workflowConfigurations?.context_compaction_enabled ?? false
     );
+    const [noiseCancellationEnabled, setNoiseCancellationEnabled] = useState<boolean>(
+        workflowConfigurations?.noise_cancellation_enabled ?? true
+    );
     const [isSaving, setIsSaving] = useState(false);
 
     const handleSave = async () => {
@@ -59,6 +62,7 @@ export const ConfigurationsDialog = ({
                 smart_turn_stop_secs: smartTurnStopSecs,
                 turn_stop_strategy: turnStopStrategy,
                 context_compaction_enabled: contextCompactionEnabled,
+                noise_cancellation_enabled: noiseCancellationEnabled,
             }, name);
             onOpenChange(false);
         } catch (error) {
@@ -78,6 +82,7 @@ export const ConfigurationsDialog = ({
             setSmartTurnStopSecs(workflowConfigurations?.smart_turn_stop_secs || 2);
             setTurnStopStrategy(workflowConfigurations?.turn_stop_strategy || 'transcription');
             setContextCompactionEnabled(workflowConfigurations?.context_compaction_enabled ?? false);
+            setNoiseCancellationEnabled(workflowConfigurations?.noise_cancellation_enabled ?? true);
         }
     }, [open, workflowName, workflowConfigurations]);
 
@@ -155,6 +160,26 @@ export const ConfigurationsDialog = ({
                                     />
                                 </div>
                             )}
+                        </div>
+                    </div>
+
+                    {/* Noise Cancellation Section */}
+                    <div className="space-y-4">
+                        <div>
+                            <h3 className="text-sm font-semibold mb-1">Noise Cancellation</h3>
+                            <p className="text-xs text-muted-foreground">
+                                Reduce background noise from the caller&apos;s microphone so the agent responds less to ambient sound.
+                            </p>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="noise-cancellation-enabled" className="text-sm">
+                                Environmental Noise Cancellation
+                            </Label>
+                            <Switch
+                                id="noise-cancellation-enabled"
+                                checked={noiseCancellationEnabled}
+                                onCheckedChange={setNoiseCancellationEnabled}
+                            />
                         </div>
                     </div>
 

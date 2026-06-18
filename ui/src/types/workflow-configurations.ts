@@ -60,6 +60,7 @@ export interface WorkflowConfigurations {
     max_user_idle_timeout: number;  // Maximum user idle time in seconds
     smart_turn_stop_secs: number;  // Timeout in seconds for incomplete turn detection
     turn_stop_strategy: TurnStopStrategy;  // Strategy for detecting end of user turn
+    noise_cancellation_enabled?: boolean;  // RNNoise environmental noise cancellation on inbound audio
     dictionary?: string;  // Comma-separated words for voice agent to listen for
     voicemail_detection?: VoicemailDetectionConfiguration;
     context_compaction_enabled?: boolean;  // Summarize context on node transitions to remove stale tool calls
@@ -74,7 +75,8 @@ export const DEFAULT_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
     },
     max_call_duration: 600,  // 10 minutes
     max_user_idle_timeout: 10,  // 10 seconds
-    smart_turn_stop_secs: 2,  // 2 seconds
+    smart_turn_stop_secs: 1.5,  // 1.5 seconds
     turn_stop_strategy: 'transcription',  // Default to transcription-based detection
+    noise_cancellation_enabled: true,
     dictionary: ''
 };

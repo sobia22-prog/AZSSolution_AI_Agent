@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0A0A0F;
+  --foreground: #F5F5F7;
+  --azs-dark: #0A0A0F;
+  --azs-charcoal: #13131A;
+  --azs-white: #F5F5F7;
+  --azs-gray: #A0A0AC;
+  
+  --color-azs-dark: var(--azs-dark);
+  --color-azs-charcoal: var(--azs-charcoal);
+  --color-azs-white: var(--azs-white);
+  --color-azs-gray: var(--azs-gray);
+  
+  --color-brand-red: #C1272D;
+  --color-brand-orange: #F7941D;
+  --color-brand-blue-start: #1B3F8B;
+  --color-brand-blue-end: #2E5BBA;
+}
+
+@theme {
+  --font-heading: var(--font-space-grotesk), sans-serif;
+  --font-sans: var(--font-inter), sans-serif;
+  
+  --color-azs-dark: var(--azs-dark);
+  --color-azs-charcoal: var(--azs-charcoal);
+  --color-azs-white: var(--azs-white);
+  --color-azs-gray: var(--azs-gray);
+  
+  --color-brand-red: #C1272D;
+  --color-brand-orange: #F7941D;
+  --color-brand-blue-start: #1B3F8B;
+  --color-brand-blue-end: #2E5BBA;
+}
+
+/* Base custom styles */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--azs-dark);
+  color: var(--azs-gray);
+  font-family: var(--font-inter), sans-serif;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--azs-dark);
+}
+::-webkit-scrollbar-thumb {
+  background: #222230;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #33334d;
+}
+
+/* Custom visual utilities */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-panel-hover:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(247, 148, 29, 0.2);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 20px 0 rgba(247, 148, 29, 0.05);
+}
+
+.glass-panel-hover-blue:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(46, 91, 186, 0.3);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 20px 0 rgba(46, 91, 186, 0.05);
+}
+
+/* Gradients text utility */
+.text-gradient-primary {
+  background: linear-gradient(135deg, #C1272D 0%, #F7941D 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-secondary {
+  background: linear-gradient(135deg, #1B3F8B 0%, #2E5BBA 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Custom animations */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+

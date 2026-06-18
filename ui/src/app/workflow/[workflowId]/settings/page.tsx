@@ -271,6 +271,9 @@ function GeneralSection({
     const [contextCompactionEnabled, setContextCompactionEnabled] = useState(
         workflowConfigurations.context_compaction_enabled ?? false,
     );
+    const [noiseCancellationEnabled, setNoiseCancellationEnabled] = useState(
+        workflowConfigurations.noise_cancellation_enabled ?? true,
+    );
     const [isSaving, setIsSaving] = useState(false);
     const [isUploadingAudio, setIsUploadingAudio] = useState(false);
     const [audioUploadError, setAudioUploadError] = useState<string | null>(null);
@@ -286,9 +289,10 @@ function GeneralSection({
             maxUserIdleTimeout !== (workflowConfigurations.max_user_idle_timeout || 10) ||
             smartTurnStopSecs !== (workflowConfigurations.smart_turn_stop_secs || 2) ||
             turnStopStrategy !== (workflowConfigurations.turn_stop_strategy || "transcription") ||
-            contextCompactionEnabled !== (workflowConfigurations.context_compaction_enabled ?? false)
+            contextCompactionEnabled !== (workflowConfigurations.context_compaction_enabled ?? false) ||
+            noiseCancellationEnabled !== (workflowConfigurations.noise_cancellation_enabled ?? true)
         );
-    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStopStrategy, contextCompactionEnabled, workflowConfigurations]);
+    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStopStrategy, contextCompactionEnabled, noiseCancellationEnabled, workflowConfigurations]);
 
     useUnsavedChanges("general", isDirty);
 
@@ -362,6 +366,7 @@ function GeneralSection({
                     smart_turn_stop_secs: smartTurnStopSecs,
                     turn_stop_strategy: turnStopStrategy,
                     context_compaction_enabled: contextCompactionEnabled,
+                    noise_cancellation_enabled: noiseCancellationEnabled,
                 },
                 name,
             );
@@ -520,6 +525,28 @@ function GeneralSection({
                             </div>
                         </div>
                     )}
+                </div>
+
+                <Separator />
+
+                {/* Noise Cancellation */}
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="text-sm font-medium">Noise Cancellation</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Filter background noise from the caller&apos;s microphone so the agent is less likely to react to ambient sound.
+                        </p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <Label htmlFor="noise-cancellation-enabled" className="text-sm">
+                            Environmental Noise Cancellation
+                        </Label>
+                        <Switch
+                            id="noise-cancellation-enabled"
+                            checked={noiseCancellationEnabled}
+                            onCheckedChange={setNoiseCancellationEnabled}
+                        />
+                    </div>
                 </div>
 
                 <Separator />

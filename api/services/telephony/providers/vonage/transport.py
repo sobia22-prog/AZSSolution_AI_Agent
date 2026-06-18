@@ -7,7 +7,7 @@ from pipecat.transports.websocket.fastapi import (
 
 from api.services.pipecat.audio_config import AudioConfig
 from api.services.pipecat.audio_mixer import build_audio_out_mixer
-from api.services.pipecat.transport_params import realtime_param_overrides
+from api.services.pipecat.transport_params import build_transport_param_overrides
 from api.services.telephony.factory import load_credentials_for_transport
 
 from .serializers import VonageFrameSerializer
@@ -22,6 +22,7 @@ async def create_transport(
     ambient_noise_config: dict | None = None,
     telephony_configuration_id: int | None = None,
     is_realtime: bool = False,
+    noise_cancellation_enabled: bool = True,
     call_uuid: str,
 ):
     """Create a transport for Vonage connections."""
@@ -61,6 +62,9 @@ async def create_transport(
             audio_out_sample_rate=audio_config.transport_out_sample_rate,
             audio_out_mixer=mixer,
             serializer=serializer,
-            **realtime_param_overrides(is_realtime),
+            **build_transport_param_overrides(
+                is_realtime=is_realtime,
+                noise_cancellation_enabled=noise_cancellation_enabled,
+            ),
         ),
     )

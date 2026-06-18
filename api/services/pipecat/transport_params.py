@@ -6,6 +6,8 @@ under ``api.services.telephony.providers/<name>/transport.py`` can call
 into the same place.
 """
 
+from api.services.pipecat.noise_cancellation import create_noise_cancellation_filter
+
 # Realtime (speech-to-speech) LLMs don't emit ``TTSStoppedFrame``, so the
 # bot-stopped-speaking signal relies on the output-queue-drained fallback.
 # The default 3s tail leaves a long gap before the assistant aggregator
@@ -23,3 +25,17 @@ def realtime_param_overrides(is_realtime: bool) -> dict:
     if not is_realtime:
         return {}
     return {"bot_vad_stop_secs": REALTIME_BOT_VAD_STOP_SECS}
+
+
+def build_transport_param_overrides(
+    *,
+    is_realtime: bool = False,
+    noise_cancellation_enabled: bool = True,
+) -> dict:
+    """Return kwargs for ``TransportParams`` / websocket transport params."""
+    overrides = realtime_param_overrides(is_realtime)
+    if noise_cancellation_enabled:
+        audio_filter = create_noise_cancellation_filter()
+        if audio_filter is not None:
+            overrides["audio_in_filter"] = audio_filter
+    return overrides

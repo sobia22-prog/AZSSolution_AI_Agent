@@ -92,6 +92,22 @@ from pipecat.utils.run_context import set_current_org_id, set_current_run_id
 # Setup tracing if enabled
 ensure_tracing()
 
+# VAD tuned to ignore quiet background noise while staying responsive.
+DEFAULT_VAD_PARAMS = VADParams(
+    confidence=0.75,
+    stop_secs=0.2,
+    min_volume=0.65,
+)
+
+# Shorter post-pause wait before the agent responds (default pipecat value is 0.6s).
+DEFAULT_USER_SPEECH_TIMEOUT = 0.35
+
+
+def _noise_cancellation_enabled(workflow_configurations: dict | None) -> bool:
+    if not workflow_configurations:
+        return True
+    return workflow_configurations.get("noise_cancellation_enabled", True)
+
 
 def _create_realtime_user_turn_config(provider: str):
     """Return user turn strategies and optional local VAD for realtime providers."""
@@ -104,9 +120,13 @@ def _create_realtime_user_turn_config(provider: str):
         return (
             UserTurnStrategies(
                 start=[VADUserTurnStartStrategy(enable_interruptions=False)],
-                stop=[SpeechTimeoutUserTurnStopStrategy()],
+                stop=[
+                    SpeechTimeoutUserTurnStopStrategy(
+                        user_speech_timeout=DEFAULT_USER_SPEECH_TIMEOUT
+                    )
+                ],
             ),
-            SileroVADAnalyzer(params=VADParams(stop_secs=0.2)),
+            SileroVADAnalyzer(params=DEFAULT_VAD_PARAMS),
         )
 
     if provider == ServiceProviders.OPENAI_REALTIME.value:
@@ -134,9 +154,13 @@ def _create_realtime_user_turn_config(provider: str):
     return (
         UserTurnStrategies(
             start=[VADUserTurnStartStrategy()],
-            stop=[SpeechTimeoutUserTurnStopStrategy()],
+            stop=[
+                SpeechTimeoutUserTurnStopStrategy(
+                    user_speech_timeout=DEFAULT_USER_SPEECH_TIMEOUT
+                )
+            ],
         ),
-        SileroVADAnalyzer(params=VADParams(stop_secs=0.2)),
+        SileroVADAnalyzer(params=DEFAULT_VAD_PARAMS),
     )
 
 
@@ -176,9 +200,13 @@ async def run_pipeline_telephony(
         set_current_org_id(workflow.organization_id)
 
     ambient_noise_config = None
+    noise_cancellation_enabled = True
     if workflow and workflow.workflow_configurations:
         ambient_noise_config = workflow.workflow_configurations.get(
             "ambient_noise_configuration"
+        )
+        noise_cancellation_enabled = _noise_cancellation_enabled(
+            workflow.workflow_configurations
         )
 
     # The telephony config id is stamped on the workflow run when it's created
@@ -217,6 +245,7 @@ async def run_pipeline_telephony(
         ambient_noise_config=ambient_noise_config,
         telephony_configuration_id=telephony_configuration_id,
         is_realtime=is_realtime,
+        noise_cancellation_enabled=noise_cancellation_enabled,
         **transport_kwargs,
     )
 
@@ -260,11 +289,15 @@ async def run_pipeline_smallwebrtc(
         set_current_org_id(workflow.organization_id)
 
     ambient_noise_config = None
+    noise_cancellation_enabled = True
     if workflow and workflow.workflow_configurations:
         if "ambient_noise_configuration" in workflow.workflow_configurations:
             ambient_noise_config = workflow.workflow_configurations[
                 "ambient_noise_configuration"
             ]
+        noise_cancellation_enabled = _noise_cancellation_enabled(
+            workflow.workflow_configurations
+        )
 
     # Create audio configuration for WebRTC
     audio_config = create_audio_config(WorkflowRunMode.SMALLWEBRTC.value)
@@ -290,6 +323,7 @@ async def run_pipeline_smallwebrtc(
         audio_config,
         ambient_noise_config,
         is_realtime=is_realtime,
+        noise_cancellation_enabled=noise_cancellation_enabled,
     )
     await _run_pipeline(
         transport,
@@ -353,7 +387,7 @@ async def _run_pipeline(
     # Extract configurations from the version's workflow_configurations
     max_call_duration_seconds = 300  # Default 5 minutes
     max_user_idle_timeout = 10.0  # Default 10 seconds
-    smart_turn_stop_secs = 2.0  # Default 2 seconds for incomplete turn timeout
+    smart_turn_stop_secs = 1.5  # Default 1.5 seconds for incomplete turn timeout
     turn_stop_strategy = "transcription"  # Default to transcription-based detection
     keyterms = None  # Dictionary words for STT boosting
 
@@ -573,7 +607,7 @@ async def _run_pipeline(
         FunctionCallUserMuteStrategy(),
         CallbackUserMuteStrategy(should_mute_callback=engine.should_mute_user),
     ]
-    user_vad_analyzer = SileroVADAnalyzer(params=VADParams(stop_secs=0.2))
+    user_vad_analyzer = SileroVADAnalyzer(params=DEFAULT_VAD_PARAMS)
 
     # Configure turn strategies based on STT provider, model, and workflow configuration
     if is_realtime:
@@ -619,7 +653,9 @@ async def _run_pipeline(
                     VADUserTurnStartStrategy(),
                     TranscriptionUserTurnStartStrategy(),
                 ],
-                stop=[SpeechTimeoutUserTurnStopStrategy()],
+                stop=[SpeechTimeoutUserTurnStopStrategy(
+                    user_speech_timeout=DEFAULT_USER_SPEECH_TIMEOUT
+                )],
             )
 
     user_params = LLMUserAggregatorParams(
