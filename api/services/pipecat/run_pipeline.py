@@ -94,9 +94,9 @@ ensure_tracing()
 
 # VAD tuned to ignore quiet background noise while staying responsive.
 DEFAULT_VAD_PARAMS = VADParams(
-    confidence=0.60,
+    confidence=0.65,
     stop_secs=0.2,
-    min_volume=0.50,
+    min_volume=0.60,
 )
 
 # Shorter post-pause wait before the agent responds (default pipecat value is 0.6s).
@@ -615,8 +615,8 @@ async def _run_pipeline(
     # Dynamic VAD configuration based on noise cancellation, with manual overrides
     noise_cancellation_enabled = run_configs.get("noise_cancellation_enabled", True) if run_configs else True
     
-    default_confidence = 0.60 if noise_cancellation_enabled else 0.70
-    default_min_volume = 0.50 if noise_cancellation_enabled else 0.60
+    default_confidence = 0.65 if noise_cancellation_enabled else 0.75
+    default_min_volume = 0.60 if noise_cancellation_enabled else 0.65
     
     vad_confidence = run_configs.get("vad_confidence", default_confidence) if run_configs else default_confidence
     vad_min_volume = run_configs.get("vad_min_volume", default_min_volume) if run_configs else default_min_volume

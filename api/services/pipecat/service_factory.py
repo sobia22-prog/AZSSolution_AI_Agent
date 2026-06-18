@@ -595,7 +595,19 @@ def create_llm_service_from_provider(
         if base_url:
             _validate_runtime_service_url(base_url, "base_url")
             kwargs["base_url"] = base_url
-        if "gpt-5" in model:
+        
+        # o1 and o3 models support reasoning_effort. Use "low" for lowest latency.
+        # Temperature is not supported or must be 1.0 (default) in reasoning models.
+        if any(x in model for x in ["o1", "o3"]):
+            return OpenAILLMService(
+                api_key=api_key,
+                settings=OpenAILLMSettings(
+                    model=model,
+                    extra={"reasoning_effort": "low"}
+                ),
+                **kwargs,
+            )
+        elif "gpt-5" in model:
             return OpenAILLMService(
                 api_key=api_key,
                 settings=OpenAILLMSettings(
@@ -619,6 +631,16 @@ def create_llm_service_from_provider(
         if base_url:
             _validate_runtime_service_url(base_url, "base_url")
             kwargs["base_url"] = base_url
+        
+        if any(x in model for x in ["o1", "o3"]):
+            return OpenRouterLLMService(
+                api_key=api_key,
+                settings=OpenRouterLLMSettings(
+                    model=model,
+                    extra={"reasoning_effort": "low"}
+                ),
+                **kwargs,
+            )
         return OpenRouterLLMService(
             api_key=api_key,
             settings=OpenRouterLLMSettings(model=model, temperature=0.1),
@@ -639,6 +661,16 @@ def create_llm_service_from_provider(
     elif provider == ServiceProviders.AZURE.value:
         if endpoint:
             _validate_runtime_service_url(endpoint, "endpoint")
+        
+        if any(x in model for x in ["o1", "o3"]):
+            return AzureLLMService(
+                api_key=api_key,
+                endpoint=endpoint,
+                settings=AzureLLMSettings(
+                    model=model,
+                    extra={"reasoning_effort": "low"}
+                ),
+            )
         return AzureLLMService(
             api_key=api_key,
             endpoint=endpoint,
