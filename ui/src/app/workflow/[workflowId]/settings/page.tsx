@@ -264,7 +264,7 @@ function GeneralSection({
     );
     const [maxCallDuration, setMaxCallDuration] = useState(workflowConfigurations.max_call_duration || 600);
     const [maxUserIdleTimeout, setMaxUserIdleTimeout] = useState(workflowConfigurations.max_user_idle_timeout || 10);
-    const [smartTurnStopSecs, setSmartTurnStopSecs] = useState(workflowConfigurations.smart_turn_stop_secs || 2);
+    const [smartTurnStopSecs, setSmartTurnStopSecs] = useState(workflowConfigurations.smart_turn_stop_secs ?? 1.0);
     const [turnStopStrategy, setTurnStopStrategy] = useState<TurnStopStrategy>(
         workflowConfigurations.turn_stop_strategy || "transcription",
     );
@@ -281,7 +281,7 @@ function GeneralSection({
         workflowConfigurations.vad_min_volume
     );
     const [userSpeechTimeout, setUserSpeechTimeout] = useState<number>(
-        workflowConfigurations.user_speech_timeout ?? 0.35
+        workflowConfigurations.user_speech_timeout ?? 0.25
     );
     const [isSaving, setIsSaving] = useState(false);
     const [isUploadingAudio, setIsUploadingAudio] = useState(false);
@@ -296,13 +296,13 @@ function GeneralSection({
             JSON.stringify(ambientNoiseConfig) !== JSON.stringify(initAmbient) ||
             maxCallDuration !== (workflowConfigurations.max_call_duration || 600) ||
             maxUserIdleTimeout !== (workflowConfigurations.max_user_idle_timeout || 10) ||
-            smartTurnStopSecs !== (workflowConfigurations.smart_turn_stop_secs || 2) ||
+            smartTurnStopSecs !== (workflowConfigurations.smart_turn_stop_secs ?? 1.0) ||
             turnStopStrategy !== (workflowConfigurations.turn_stop_strategy || "transcription") ||
             contextCompactionEnabled !== (workflowConfigurations.context_compaction_enabled ?? false) ||
             noiseCancellationEnabled !== (workflowConfigurations.noise_cancellation_enabled ?? true) ||
             vadConfidence !== workflowConfigurations.vad_confidence ||
             vadMinVolume !== workflowConfigurations.vad_min_volume ||
-            userSpeechTimeout !== (workflowConfigurations.user_speech_timeout ?? 0.35)
+            userSpeechTimeout !== (workflowConfigurations.user_speech_timeout ?? 0.25)
         );
     }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStopStrategy, contextCompactionEnabled, noiseCancellationEnabled, vadConfidence, vadMinVolume, userSpeechTimeout, workflowConfigurations]);
 
@@ -612,7 +612,7 @@ function GeneralSection({
                                 }}
                             />
                             <p className="text-xs text-muted-foreground">
-                                Max silence duration before ending an incomplete turn. Default: 2 seconds
+                                Max silence duration before ending an incomplete turn. Default: 1.0 second
                             </p>
                         </div>
                     )}
@@ -634,7 +634,7 @@ function GeneralSection({
                                 }}
                             />
                             <p className="text-xs text-muted-foreground">
-                                Duration of silence to wait after user pauses speaking before responding. Default: 0.35 seconds
+                                Duration of silence to wait after user pauses speaking before responding. Default: 0.25 seconds
                             </p>
                         </div>
                     )}
@@ -648,7 +648,7 @@ function GeneralSection({
                             step="0.05"
                             min="0.1"
                             max="1"
-                            placeholder={noiseCancellationEnabled ? "0.60 (Default)" : "0.70 (Default)"}
+                            placeholder={noiseCancellationEnabled ? "0.65 (Default)" : "0.75 (Default)"}
                             value={vadConfidence !== undefined ? vadConfidence : ""}
                             onChange={(e) => {
                                 const valStr = e.target.value;
@@ -676,7 +676,7 @@ function GeneralSection({
                             step="0.05"
                             min="0"
                             max="1"
-                            placeholder={noiseCancellationEnabled ? "0.50 (Default)" : "0.60 (Default)"}
+                            placeholder={noiseCancellationEnabled ? "0.60 (Default)" : "0.65 (Default)"}
                             value={vadMinVolume !== undefined ? vadMinVolume : ""}
                             onChange={(e) => {
                                 const valStr = e.target.value;

@@ -598,7 +598,9 @@ def create_llm_service_from_provider(
         
         # o1 and o3 models support reasoning_effort. Use "low" for lowest latency.
         # Temperature is not supported or must be 1.0 (default) in reasoning models.
-        if any(x in model for x in ["o1", "o3"]):
+        # Note: o1-mini and o1-preview do not support reasoning_effort and will error.
+        is_reasoning_effort_supported = (("o1" in model and "mini" not in model and "preview" not in model) or ("o3" in model))
+        if is_reasoning_effort_supported:
             return OpenAILLMService(
                 api_key=api_key,
                 settings=OpenAILLMSettings(
@@ -632,7 +634,8 @@ def create_llm_service_from_provider(
             _validate_runtime_service_url(base_url, "base_url")
             kwargs["base_url"] = base_url
         
-        if any(x in model for x in ["o1", "o3"]):
+        is_reasoning_effort_supported = (("o1" in model and "mini" not in model and "preview" not in model) or ("o3" in model))
+        if is_reasoning_effort_supported:
             return OpenRouterLLMService(
                 api_key=api_key,
                 settings=OpenRouterLLMSettings(
@@ -662,7 +665,8 @@ def create_llm_service_from_provider(
         if endpoint:
             _validate_runtime_service_url(endpoint, "endpoint")
         
-        if any(x in model for x in ["o1", "o3"]):
+        is_reasoning_effort_supported = (("o1" in model and "mini" not in model and "preview" not in model) or ("o3" in model))
+        if is_reasoning_effort_supported:
             return AzureLLMService(
                 api_key=api_key,
                 endpoint=endpoint,

@@ -39,7 +39,7 @@ export const ConfigurationsDialog = ({
         workflowConfigurations?.max_user_idle_timeout || 10  // Default 10 seconds
     );
     const [smartTurnStopSecs, setSmartTurnStopSecs] = useState<number>(
-        workflowConfigurations?.smart_turn_stop_secs || 2  // Default 2 seconds
+        workflowConfigurations?.smart_turn_stop_secs ?? 1.0  // Default 1.0 second
     );
     const [turnStopStrategy, setTurnStopStrategy] = useState<TurnStopStrategy>(
         workflowConfigurations?.turn_stop_strategy || 'transcription'
@@ -57,7 +57,7 @@ export const ConfigurationsDialog = ({
         workflowConfigurations?.vad_min_volume
     );
     const [userSpeechTimeout, setUserSpeechTimeout] = useState<number>(
-        workflowConfigurations?.user_speech_timeout ?? 0.35
+        workflowConfigurations?.user_speech_timeout ?? 0.25
     );
     const [isSaving, setIsSaving] = useState(false);
 
@@ -91,13 +91,13 @@ export const ConfigurationsDialog = ({
             setAmbientNoiseConfig(workflowConfigurations?.ambient_noise_configuration || DEFAULT_AMBIENT_NOISE_CONFIG);
             setMaxCallDuration(workflowConfigurations?.max_call_duration || 600);
             setMaxUserIdleTimeout(workflowConfigurations?.max_user_idle_timeout || 10);
-            setSmartTurnStopSecs(workflowConfigurations?.smart_turn_stop_secs || 2);
+            setSmartTurnStopSecs(workflowConfigurations?.smart_turn_stop_secs ?? 1.0);
             setTurnStopStrategy(workflowConfigurations?.turn_stop_strategy || 'transcription');
             setContextCompactionEnabled(workflowConfigurations?.context_compaction_enabled ?? false);
             setNoiseCancellationEnabled(workflowConfigurations?.noise_cancellation_enabled ?? true);
             setVadConfidence(workflowConfigurations?.vad_confidence);
             setVadMinVolume(workflowConfigurations?.vad_min_volume);
-            setUserSpeechTimeout(workflowConfigurations?.user_speech_timeout ?? 0.35);
+            setUserSpeechTimeout(workflowConfigurations?.user_speech_timeout ?? 0.25);
         }
     }, [open, workflowName, workflowConfigurations]);
 
@@ -254,7 +254,7 @@ export const ConfigurationsDialog = ({
                                     }}
                                 />
                                 <p className="text-xs text-muted-foreground">
-                                    Max silence duration before ending an incomplete turn. Default: 2 seconds
+                                    Max silence duration before ending an incomplete turn. Default: 1.0 second
                                 </p>
                             </div>
                         )}
@@ -279,7 +279,7 @@ export const ConfigurationsDialog = ({
                                     }}
                                 />
                                 <p className="text-xs text-muted-foreground">
-                                    Duration of silence to wait after user pauses speaking before responding. Default: 0.35 seconds
+                                    Duration of silence to wait after user pauses speaking before responding. Default: 0.25 seconds
                                 </p>
                             </div>
                         )}
@@ -294,7 +294,7 @@ export const ConfigurationsDialog = ({
                                 step="0.05"
                                 min="0.1"
                                 max="1"
-                                placeholder={noiseCancellationEnabled ? "0.60 (Default)" : "0.70 (Default)"}
+                                placeholder={noiseCancellationEnabled ? "0.65 (Default)" : "0.75 (Default)"}
                                 value={vadConfidence !== undefined ? vadConfidence : ""}
                                 onChange={(e) => {
                                     const valStr = e.target.value;
@@ -323,7 +323,7 @@ export const ConfigurationsDialog = ({
                                 step="0.05"
                                 min="0"
                                 max="1"
-                                placeholder={noiseCancellationEnabled ? "0.50 (Default)" : "0.60 (Default)"}
+                                placeholder={noiseCancellationEnabled ? "0.60 (Default)" : "0.65 (Default)"}
                                 value={vadMinVolume !== undefined ? vadMinVolume : ""}
                                 onChange={(e) => {
                                     const valStr = e.target.value;

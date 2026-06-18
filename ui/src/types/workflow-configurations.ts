@@ -78,7 +78,7 @@ export const DEFAULT_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
     },
     max_call_duration: 600,  // 10 minutes
     max_user_idle_timeout: 10,  // 10 seconds
-    smart_turn_stop_secs: 1.5,  // 1.5 seconds
+    smart_turn_stop_secs: 1.0,  // 1.0 second
     turn_stop_strategy: 'transcription',  // Default to transcription-based detection
     noise_cancellation_enabled: true,
     dictionary: ''

@@ -95,12 +95,12 @@ ensure_tracing()
 # VAD tuned to ignore quiet background noise while staying responsive.
 DEFAULT_VAD_PARAMS = VADParams(
     confidence=0.65,
-    stop_secs=0.2,
+    stop_secs=0.10,
     min_volume=0.60,
 )
 
 # Shorter post-pause wait before the agent responds (default pipecat value is 0.6s).
-DEFAULT_USER_SPEECH_TIMEOUT = 0.35
+DEFAULT_USER_SPEECH_TIMEOUT = 0.25
 
 
 def _noise_cancellation_enabled(workflow_configurations: dict | None) -> bool:
@@ -617,10 +617,11 @@ async def _run_pipeline(
     
     default_confidence = 0.65 if noise_cancellation_enabled else 0.75
     default_min_volume = 0.60 if noise_cancellation_enabled else 0.65
+    default_stop_secs = 0.10 if noise_cancellation_enabled else 0.15
     
     vad_confidence = run_configs.get("vad_confidence", default_confidence) if run_configs else default_confidence
     vad_min_volume = run_configs.get("vad_min_volume", default_min_volume) if run_configs else default_min_volume
-    vad_stop_secs = run_configs.get("vad_stop_secs", 0.2) if run_configs else 0.2
+    vad_stop_secs = run_configs.get("vad_stop_secs", default_stop_secs) if run_configs else default_stop_secs
     user_speech_timeout = run_configs.get("user_speech_timeout", DEFAULT_USER_SPEECH_TIMEOUT) if run_configs else DEFAULT_USER_SPEECH_TIMEOUT
 
     vad_params = VADParams(
