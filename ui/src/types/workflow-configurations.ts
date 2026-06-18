@@ -61,6 +61,9 @@ export interface WorkflowConfigurations {
     smart_turn_stop_secs: number;  // Timeout in seconds for incomplete turn detection
     turn_stop_strategy: TurnStopStrategy;  // Strategy for detecting end of user turn
     noise_cancellation_enabled?: boolean;  // RNNoise environmental noise cancellation on inbound audio
+    vad_confidence?: number;  // Minimum confidence threshold for voice activity detection (0.0 to 1.0)
+    vad_min_volume?: number;  // Minimum audio volume threshold for voice activity detection (0.0 to 1.0)
+    user_speech_timeout?: number;  // Wait duration after user pauses before agent responds (seconds)
     dictionary?: string;  // Comma-separated words for voice agent to listen for
     voicemail_detection?: VoicemailDetectionConfiguration;
     context_compaction_enabled?: boolean;  // Summarize context on node transitions to remove stale tool calls

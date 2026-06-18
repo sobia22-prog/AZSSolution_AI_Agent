@@ -274,6 +274,15 @@ function GeneralSection({
     const [noiseCancellationEnabled, setNoiseCancellationEnabled] = useState(
         workflowConfigurations.noise_cancellation_enabled ?? true,
     );
+    const [vadConfidence, setVadConfidence] = useState<number | undefined>(
+        workflowConfigurations.vad_confidence
+    );
+    const [vadMinVolume, setVadMinVolume] = useState<number | undefined>(
+        workflowConfigurations.vad_min_volume
+    );
+    const [userSpeechTimeout, setUserSpeechTimeout] = useState<number>(
+        workflowConfigurations.user_speech_timeout ?? 0.35
+    );
     const [isSaving, setIsSaving] = useState(false);
     const [isUploadingAudio, setIsUploadingAudio] = useState(false);
     const [audioUploadError, setAudioUploadError] = useState<string | null>(null);
@@ -290,9 +299,12 @@ function GeneralSection({
             smartTurnStopSecs !== (workflowConfigurations.smart_turn_stop_secs || 2) ||
             turnStopStrategy !== (workflowConfigurations.turn_stop_strategy || "transcription") ||
             contextCompactionEnabled !== (workflowConfigurations.context_compaction_enabled ?? false) ||
-            noiseCancellationEnabled !== (workflowConfigurations.noise_cancellation_enabled ?? true)
+            noiseCancellationEnabled !== (workflowConfigurations.noise_cancellation_enabled ?? true) ||
+            vadConfidence !== workflowConfigurations.vad_confidence ||
+            vadMinVolume !== workflowConfigurations.vad_min_volume ||
+            userSpeechTimeout !== (workflowConfigurations.user_speech_timeout ?? 0.35)
         );
-    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStopStrategy, contextCompactionEnabled, noiseCancellationEnabled, workflowConfigurations]);
+    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStopStrategy, contextCompactionEnabled, noiseCancellationEnabled, vadConfidence, vadMinVolume, userSpeechTimeout, workflowConfigurations]);
 
     useUnsavedChanges("general", isDirty);
 
@@ -367,6 +379,9 @@ function GeneralSection({
                     turn_stop_strategy: turnStopStrategy,
                     context_compaction_enabled: contextCompactionEnabled,
                     noise_cancellation_enabled: noiseCancellationEnabled,
+                    vad_confidence: vadConfidence,
+                    vad_min_volume: vadMinVolume,
+                    user_speech_timeout: userSpeechTimeout,
                 },
                 name,
             );
@@ -601,6 +616,84 @@ function GeneralSection({
                             </p>
                         </div>
                     )}
+                    {turnStopStrategy === "transcription" && (
+                        <div className="space-y-2">
+                            <Label htmlFor="user_speech_timeout" className="text-xs">
+                                User Speech Timeout (seconds)
+                            </Label>
+                            <Input
+                                id="user_speech_timeout"
+                                type="number"
+                                step="0.05"
+                                min="0.1"
+                                max="5"
+                                value={userSpeechTimeout}
+                                onChange={(e) => {
+                                    const value = parseFloat(e.target.value);
+                                    if (!isNaN(value) && value >= 0.1) setUserSpeechTimeout(value);
+                                }}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Duration of silence to wait after user pauses speaking before responding. Default: 0.35 seconds
+                            </p>
+                        </div>
+                    )}
+                    <div className="space-y-2">
+                        <Label htmlFor="vad_confidence" className="text-xs">
+                            Voice Activity Confidence Threshold
+                        </Label>
+                        <Input
+                            id="vad_confidence"
+                            type="number"
+                            step="0.05"
+                            min="0.1"
+                            max="1"
+                            placeholder={noiseCancellationEnabled ? "0.60 (Default)" : "0.70 (Default)"}
+                            value={vadConfidence !== undefined ? vadConfidence : ""}
+                            onChange={(e) => {
+                                const valStr = e.target.value;
+                                if (valStr === "") {
+                                    setVadConfidence(undefined);
+                                } else {
+                                    const value = parseFloat(valStr);
+                                    if (!isNaN(value) && value >= 0.1 && value <= 1.0) {
+                                        setVadConfidence(value);
+                                    }
+                                }
+                            }}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Minimum confidence required to detect the start of user speech. Lower values detect speech faster but might trigger on noise.
+                        </p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="vad_min_volume" className="text-xs">
+                            Voice Activity Minimum Volume Threshold
+                        </Label>
+                        <Input
+                            id="vad_min_volume"
+                            type="number"
+                            step="0.05"
+                            min="0"
+                            max="1"
+                            placeholder={noiseCancellationEnabled ? "0.50 (Default)" : "0.60 (Default)"}
+                            value={vadMinVolume !== undefined ? vadMinVolume : ""}
+                            onChange={(e) => {
+                                const valStr = e.target.value;
+                                if (valStr === "") {
+                                    setVadMinVolume(undefined);
+                                } else {
+                                    const value = parseFloat(valStr);
+                                    if (!isNaN(value) && value >= 0.0 && value <= 1.0) {
+                                        setVadMinVolume(value);
+                                    }
+                                }
+                            }}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Minimum audio energy required to trigger speech detection. Lower values make the agent sensitive to quiet speech.
+                        </p>
+                    </div>
                 </div>
 
                 <Separator />

@@ -94,9 +94,9 @@ ensure_tracing()
 
 # VAD tuned to ignore quiet background noise while staying responsive.
 DEFAULT_VAD_PARAMS = VADParams(
-    confidence=0.75,
+    confidence=0.60,
     stop_secs=0.2,
-    min_volume=0.65,
+    min_volume=0.50,
 )
 
 # Shorter post-pause wait before the agent responds (default pipecat value is 0.6s).
@@ -109,7 +109,11 @@ def _noise_cancellation_enabled(workflow_configurations: dict | None) -> bool:
     return workflow_configurations.get("noise_cancellation_enabled", True)
 
 
-def _create_realtime_user_turn_config(provider: str):
+def _create_realtime_user_turn_config(
+    provider: str,
+    vad_params: VADParams,
+    user_speech_timeout: float,
+):
     """Return user turn strategies and optional local VAD for realtime providers."""
     if provider in {
         ServiceProviders.GOOGLE_REALTIME.value,
@@ -122,11 +126,11 @@ def _create_realtime_user_turn_config(provider: str):
                 start=[VADUserTurnStartStrategy(enable_interruptions=False)],
                 stop=[
                     SpeechTimeoutUserTurnStopStrategy(
-                        user_speech_timeout=DEFAULT_USER_SPEECH_TIMEOUT
+                        user_speech_timeout=user_speech_timeout
                     )
                 ],
             ),
-            SileroVADAnalyzer(params=DEFAULT_VAD_PARAMS),
+            SileroVADAnalyzer(params=vad_params),
         )
 
     if provider == ServiceProviders.OPENAI_REALTIME.value:
@@ -156,11 +160,11 @@ def _create_realtime_user_turn_config(provider: str):
             start=[VADUserTurnStartStrategy()],
             stop=[
                 SpeechTimeoutUserTurnStopStrategy(
-                    user_speech_timeout=DEFAULT_USER_SPEECH_TIMEOUT
+                    user_speech_timeout=user_speech_timeout
                 )
             ],
         ),
-        SileroVADAnalyzer(params=DEFAULT_VAD_PARAMS),
+        SileroVADAnalyzer(params=vad_params),
     )
 
 
@@ -607,14 +611,33 @@ async def _run_pipeline(
         FunctionCallUserMuteStrategy(),
         CallbackUserMuteStrategy(should_mute_callback=engine.should_mute_user),
     ]
-    user_vad_analyzer = SileroVADAnalyzer(params=DEFAULT_VAD_PARAMS)
+
+    # Dynamic VAD configuration based on noise cancellation, with manual overrides
+    noise_cancellation_enabled = run_configs.get("noise_cancellation_enabled", True) if run_configs else True
+    
+    default_confidence = 0.60 if noise_cancellation_enabled else 0.70
+    default_min_volume = 0.50 if noise_cancellation_enabled else 0.60
+    
+    vad_confidence = run_configs.get("vad_confidence", default_confidence) if run_configs else default_confidence
+    vad_min_volume = run_configs.get("vad_min_volume", default_min_volume) if run_configs else default_min_volume
+    vad_stop_secs = run_configs.get("vad_stop_secs", 0.2) if run_configs else 0.2
+    user_speech_timeout = run_configs.get("user_speech_timeout", DEFAULT_USER_SPEECH_TIMEOUT) if run_configs else DEFAULT_USER_SPEECH_TIMEOUT
+
+    vad_params = VADParams(
+        confidence=vad_confidence,
+        stop_secs=vad_stop_secs,
+        min_volume=vad_min_volume,
+    )
+    user_vad_analyzer = SileroVADAnalyzer(params=vad_params)
 
     # Configure turn strategies based on STT provider, model, and workflow configuration
     if is_realtime:
         # Realtime services still need user-turn tracking even when the model
         # itself owns speech generation and interruption behavior.
         user_turn_strategies, user_vad_analyzer = _create_realtime_user_turn_config(
-            user_config.realtime.provider
+            user_config.realtime.provider,
+            vad_params=vad_params,
+            user_speech_timeout=user_speech_timeout,
         )
     else:
         # Deepgram Flux uses external turn detection (VAD + External start/stop)
@@ -654,7 +677,7 @@ async def _run_pipeline(
                     TranscriptionUserTurnStartStrategy(),
                 ],
                 stop=[SpeechTimeoutUserTurnStopStrategy(
-                    user_speech_timeout=DEFAULT_USER_SPEECH_TIMEOUT
+                    user_speech_timeout=user_speech_timeout
                 )],
             )
 

@@ -47,5 +47,5 @@ def test_build_transport_param_overrides_skips_filter_when_disabled():
 
 def test_latency_defaults_are_tuned():
     assert DEFAULT_USER_SPEECH_TIMEOUT == 0.35
-    assert DEFAULT_VAD_PARAMS.min_volume == 0.65
-    assert DEFAULT_VAD_PARAMS.confidence == 0.75
+    assert DEFAULT_VAD_PARAMS.min_volume == 0.50
+    assert DEFAULT_VAD_PARAMS.confidence == 0.60
