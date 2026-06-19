@@ -96,9 +96,9 @@ def create_stt_service(
                 api_key=user_config.stt.api_key,
                 settings=DeepgramFluxSTTSettings(
                     model=user_config.stt.model,
-                    eot_timeout_ms=800,
+                    eot_timeout_ms=500,
                     eot_threshold=0.7,
-                    eager_eot_threshold=0.4,
+                    eager_eot_threshold=0.3,
                     keyterm=keyterms or [],
                 ),
                 should_interrupt=False,  # Let UserAggregator take care of sending InterruptionFrame
@@ -762,7 +762,7 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
                     audio=AudioConfiguration(
                         input=AudioInput(
                             transcription=InputAudioTranscription(),
-                            turn_detection=TurnDetection(silence_duration_ms=300),
+                            turn_detection=TurnDetection(silence_duration_ms=200),
                         ),
                         output=AudioOutput(
                             voice=voice or "alloy",
@@ -887,7 +887,7 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
                     audio=AudioConfiguration(
                         input=AudioInput(
                             transcription=InputAudioTranscription(),
-                            turn_detection=TurnDetection(silence_duration_ms=300),
+                            turn_detection=TurnDetection(silence_duration_ms=200),
                         ),
                         output=AudioOutput(
                             voice=voice or "alloy",

@@ -30,7 +30,7 @@ export function MessageBubble({
                 {!isUser && reasoningDurationMs !== undefined ? (
                     <div className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
                         <Brain className="h-3 w-3" />
-                        <span className="font-medium">Reasoning Delay:</span>
+                        <span className="font-medium">Response Latency:</span>
                         <span>{Math.round(reasoningDurationMs)}ms</span>
                     </div>
                 ) : null}
