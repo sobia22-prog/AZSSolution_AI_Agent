@@ -135,6 +135,7 @@ class DograhOpenAIRealtimeLLMService(OpenAIRealtimeLLMService):
             await self._create_response()
         else:
             self._context = context
+            await self._send_session_update()
             await self._process_completed_function_calls(send_new_results=True)
 
     async def _send_user_audio(self, frame):

@@ -15,6 +15,7 @@ def _make_service() -> DograhOpenAIRealtimeLLMService:
     service = DograhOpenAIRealtimeLLMService(api_key="test-key")
     service._create_response = AsyncMock()
     service._process_completed_function_calls = AsyncMock()
+    service._send_session_update = AsyncMock()
     return service
 
 
@@ -30,6 +31,7 @@ async def test_initial_context_triggers_response_when_context_was_prepopulated()
     assert service._context is context
     service._create_response.assert_awaited_once()
     service._process_completed_function_calls.assert_not_awaited()
+    service._send_session_update.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -42,6 +44,7 @@ async def test_updated_context_uses_tool_result_path_after_initial_context():
 
     assert service._context is context
     service._create_response.assert_not_awaited()
+    service._send_session_update.assert_awaited_once()
     service._process_completed_function_calls.assert_awaited_once_with(
         send_new_results=True
     )
