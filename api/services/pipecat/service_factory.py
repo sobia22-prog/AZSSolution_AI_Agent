@@ -90,15 +90,15 @@ def create_stt_service(
         f"Creating STT service: provider={user_config.stt.provider}, model={user_config.stt.model}"
     )
     if user_config.stt.provider == ServiceProviders.DEEPGRAM.value:
-        # Check if using Flux model (English-only, no language selection)
-        if user_config.stt.model == "flux-general-en":
+        # Check if using Flux model (supports English and Multilingual)
+        if "flux" in user_config.stt.model:
             return DeepgramFluxSTTService(
                 api_key=user_config.stt.api_key,
                 settings=DeepgramFluxSTTSettings(
                     model=user_config.stt.model,
-                    eot_timeout_ms=3000,
+                    eot_timeout_ms=800,
                     eot_threshold=0.7,
-                    eager_eot_threshold=0.5,
+                    eager_eot_threshold=0.4,
                     keyterm=keyterms or [],
                 ),
                 should_interrupt=False,  # Let UserAggregator take care of sending InterruptionFrame
@@ -751,6 +751,7 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
             AudioOutput,
             InputAudioTranscription,
             SessionProperties,
+            TurnDetection,
         )
 
         return DograhOpenAIRealtimeLLMService(
@@ -761,6 +762,7 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
                     audio=AudioConfiguration(
                         input=AudioInput(
                             transcription=InputAudioTranscription(),
+                            turn_detection=TurnDetection(silence_duration_ms=300),
                         ),
                         output=AudioOutput(
                             voice=voice or "alloy",
@@ -850,6 +852,7 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
             AudioOutput,
             InputAudioTranscription,
             SessionProperties,
+            TurnDetection,
         )
 
         endpoint = getattr(realtime_config, "endpoint", None) or ""
@@ -884,6 +887,7 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
                     audio=AudioConfiguration(
                         input=AudioInput(
                             transcription=InputAudioTranscription(),
+                            turn_detection=TurnDetection(silence_duration_ms=300),
                         ),
                         output=AudioOutput(
                             voice=voice or "alloy",

@@ -281,7 +281,7 @@ function GeneralSection({
         workflowConfigurations.vad_min_volume
     );
     const [userSpeechTimeout, setUserSpeechTimeout] = useState<number>(
-        workflowConfigurations.user_speech_timeout ?? 0.25
+        workflowConfigurations.user_speech_timeout ?? 0.20
     );
     const [isSaving, setIsSaving] = useState(false);
     const [isUploadingAudio, setIsUploadingAudio] = useState(false);
@@ -302,7 +302,7 @@ function GeneralSection({
             noiseCancellationEnabled !== (workflowConfigurations.noise_cancellation_enabled ?? true) ||
             vadConfidence !== workflowConfigurations.vad_confidence ||
             vadMinVolume !== workflowConfigurations.vad_min_volume ||
-            userSpeechTimeout !== (workflowConfigurations.user_speech_timeout ?? 0.25)
+            userSpeechTimeout !== (workflowConfigurations.user_speech_timeout ?? 0.20)
         );
     }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStopStrategy, contextCompactionEnabled, noiseCancellationEnabled, vadConfidence, vadMinVolume, userSpeechTimeout, workflowConfigurations]);
 
@@ -634,7 +634,7 @@ function GeneralSection({
                                 }}
                             />
                             <p className="text-xs text-muted-foreground">
-                                Duration of silence to wait after user pauses speaking before responding. Default: 0.25 seconds
+                                Duration of silence to wait after user pauses speaking before responding. Default: 0.20 seconds
                             </p>
                         </div>
                     )}

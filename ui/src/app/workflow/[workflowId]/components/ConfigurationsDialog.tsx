@@ -57,7 +57,7 @@ export const ConfigurationsDialog = ({
         workflowConfigurations?.vad_min_volume
     );
     const [userSpeechTimeout, setUserSpeechTimeout] = useState<number>(
-        workflowConfigurations?.user_speech_timeout ?? 0.25
+        workflowConfigurations?.user_speech_timeout ?? 0.20
     );
     const [isSaving, setIsSaving] = useState(false);
 
@@ -97,7 +97,7 @@ export const ConfigurationsDialog = ({
             setNoiseCancellationEnabled(workflowConfigurations?.noise_cancellation_enabled ?? true);
             setVadConfidence(workflowConfigurations?.vad_confidence);
             setVadMinVolume(workflowConfigurations?.vad_min_volume);
-            setUserSpeechTimeout(workflowConfigurations?.user_speech_timeout ?? 0.25);
+            setUserSpeechTimeout(workflowConfigurations?.user_speech_timeout ?? 0.20);
         }
     }, [open, workflowName, workflowConfigurations]);
 
@@ -279,7 +279,7 @@ export const ConfigurationsDialog = ({
                                     }}
                                 />
                                 <p className="text-xs text-muted-foreground">
-                                    Duration of silence to wait after user pauses speaking before responding. Default: 0.25 seconds
+                                    Duration of silence to wait after user pauses speaking before responding. Default: 0.20 seconds
                                 </p>
                             </div>
                         )}
