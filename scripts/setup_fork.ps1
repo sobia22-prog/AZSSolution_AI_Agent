@@ -99,42 +99,83 @@ Write-Host ''
 ###############################################################################
 
 Write-Host '[3/4] Python virtual environment' -ForegroundColor Blue
+
 $VenvPath = Join-Path $BaseDir 'venv'
 $VenvActivate = Join-Path $VenvPath 'Scripts/Activate.ps1'
 
 function Get-Python313Command {
+
+    # First try the Windows Python Launcher (recommended on Windows)
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        try {
+            $version = & py -3.13 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
+            if ($LASTEXITCODE -eq 0 -and $version -eq '3.13') {
+                return @{
+                    Command = 'py'
+                    Args    = @('-3.13')
+                }
+            }
+        } catch {}
+    }
+
+    # Fallbacks for Linux/macOS or custom installs
     foreach ($candidate in @('python3.13', 'python3', 'python')) {
+
         if (-not (Get-Command $candidate -ErrorAction SilentlyContinue)) {
             continue
         }
 
-        $version = & $candidate -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
-        if ($LASTEXITCODE -eq 0 -and $version -eq '3.13') {
-            return $candidate
-        }
+        try {
+            $version = & $candidate -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
+
+            if ($LASTEXITCODE -eq 0 -and $version -eq '3.13') {
+                return @{
+                    Command = $candidate
+                    Args    = @()
+                }
+            }
+        } catch {}
     }
 
     return $null
 }
 
 if (Test-Path $VenvActivate) {
-    $venvPython = Join-Path $VenvPath 'Scripts/python.exe'
+
+    $venvPython = Join-Path $VenvPath 'Scripts\python.exe'
+
     $venvVersion = & $venvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
+
     if ($LASTEXITCODE -ne 0 -or $venvVersion -ne '3.13') {
-        Write-Host "Error: existing venv uses Python $venvVersion. Remove $VenvPath and re-run with Python 3.13." -ForegroundColor Red
+        Write-Host "Error: existing venv uses Python $venvVersion. Remove '$VenvPath' and re-run." -ForegroundColor Red
         exit 1
     }
+
     Write-Host "OK venv already exists at $VenvPath (Python $venvVersion)" -ForegroundColor Green
-} else {
+
+}
+else {
+
     $py = Get-Python313Command
+
     if (-not $py) {
-        Write-Host 'Error: no Python 3.13 interpreter found on PATH. Install Python 3.13.' -ForegroundColor Red
+        Write-Host 'Error: no Python 3.13 interpreter found.' -ForegroundColor Red
+        Write-Host 'Install Python 3.13 from https://www.python.org/downloads/' -ForegroundColor Yellow
         exit 1
     }
-    & $py -m venv $VenvPath
-    $ver = (& $py --version)
-    Write-Host "OK venv created at $VenvPath using $py ($ver)" -ForegroundColor Green
+
+    & $py.Command @($py.Args) -m venv $VenvPath
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host 'Failed to create virtual environment.' -ForegroundColor Red
+        exit 1
+    }
+
+    $ver = & $py.Command @($py.Args) --version
+
+    Write-Host "OK venv created at $VenvPath using $($py.Command) $($py.Args -join ' ') ($ver)" -ForegroundColor Green
 }
+
 Write-Host ''
 
 ###############################################################################

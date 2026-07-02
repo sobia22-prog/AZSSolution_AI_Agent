@@ -4,25 +4,3 @@ Steps:
 1. Created and linked account to docker
 2. Updated windows subsystem for linux to run docker via the command wsl --update
 3. Opened the dograh folder remotely on Dev Containers
-
-
-
-
-Dograh voice api key
-YOUR_DOGRAH_VOICE_API_KEY
-
-
-Open ai api key
-YOUR_OPENAI_API_KEY
-
-
-Deepgram voice api key
-YOUR_DEEPGRAM_VOICE_API_KEY
-
-
-ElevenLabs api key
-YOUR_ELEVENLABS_API_KEY
-
-
-Telnyx number api key
-YOUR_TELNYX_API_KEY
