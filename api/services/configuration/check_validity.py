@@ -231,10 +231,16 @@ class UserConfigurationValidator:
     def _check_openai_api_key(
         self, model: str, api_key: str, service_config: Optional[ServiceConfig] = None
     ) -> bool:
-        client_kwargs: dict[str, str] = {"api_key": api_key}
+        client_kwargs: dict = {"api_key": api_key}
         base_url = getattr(service_config, "base_url", None) if service_config else None
         if base_url:
             client_kwargs["base_url"] = base_url
+        # Explicitly set organization and project to None so the OpenAI SDK does
+        # NOT pick up OPENAI_ORG_ID / OPENAI_PROJECT_ID from the server environment.
+        # On Railway/Vercel those env vars may differ from the user's account,
+        # causing a 401 even for a perfectly valid user-supplied key.
+        client_kwargs["organization"] = None
+        client_kwargs["project"] = None
         client = openai.OpenAI(**client_kwargs)
         try:
             client.models.list()
