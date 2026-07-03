@@ -15,7 +15,7 @@ import type { DocumentResponseSchema, RecordingResponseSchema, ToolResponse } fr
 import { useNodeSpecs } from "@/components/flow/renderer";
 import { FlowEdge, FlowNode, NodeType } from "@/components/flow/types";
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { WorkflowConfigurations } from '@/types/workflow-configurations';
@@ -673,6 +673,10 @@ function RenderWorkflow({
 
                     <Sheet open={isTesterSheetOpen} onOpenChange={setIsTesterSheetOpen}>
                         <SheetContent side="right" className="w-full max-w-none p-0 sm:max-w-xl xl:hidden">
+                            <SheetTitle className="sr-only">Test Agent</SheetTitle>
+                            <SheetDescription className="sr-only">
+                                Test the agent WebRTC call and chat interface.
+                            </SheetDescription>
                             <WorkflowTesterPanel
                                 workflowId={workflowId}
                                 initialContextVariables={templateContextVariables}

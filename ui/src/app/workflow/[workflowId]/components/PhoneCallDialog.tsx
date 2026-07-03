@@ -220,6 +220,9 @@ export const PhoneCallDialog = ({
         <>
             <DialogHeader>
                 <DialogTitle>Phone Call</DialogTitle>
+                <DialogDescription className="sr-only">
+                    Loading telephony configuration...
+                </DialogDescription>
             </DialogHeader>
             <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
