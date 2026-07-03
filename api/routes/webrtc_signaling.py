@@ -247,6 +247,27 @@ class SignalingManager:
         self._connections: Dict[str, WebSocket] = {}
         self._peer_connections: Dict[str, SmallWebRTCConnection] = {}
 
+    async def _wait_for_ice_gathering(
+        self, pc: SmallWebRTCConnection, timeout_secs: float = 3.0
+    ):
+        """Wait for the ICE gathering state on the connection to complete."""
+        logger.info(
+            f"Waiting for server ICE gathering to complete (current state: {pc.pc.iceGatheringState})..."
+        )
+        try:
+            steps = int(timeout_secs / 0.1)
+            for _ in range(steps):
+                if pc.pc.iceGatheringState == "complete":
+                    logger.info("ICE gathering completed successfully")
+                    break
+                await asyncio.sleep(0.1)
+            else:
+                logger.warning(
+                    f"ICE gathering did not complete within {timeout_secs}s. Current state: {pc.pc.iceGatheringState}"
+                )
+        except Exception as e:
+            logger.error(f"Error while waiting for ICE gathering: {e}")
+
     async def handle_websocket(
         self,
         websocket: WebSocket,
@@ -349,6 +370,11 @@ class SignalingManager:
             pc = self._peer_connections[pc_id]
             await pc.renegotiate(sdp=sdp, type=type_, restart_pc=False)
 
+            # Wait for ICE gathering to complete before retrieving answer SDP
+            await self._wait_for_ice_gathering(pc)
+            if pc.pc.localDescription:
+                pc._answer = pc.pc.localDescription
+
             # Send updated answer
             answer = pc.get_answer()
             await ws.send_json(
@@ -401,6 +427,11 @@ class SignalingManager:
                     user_provider_id=str(user.provider_id),
                 )
             )
+
+            # Wait for ICE gathering to complete before retrieving answer SDP
+            await self._wait_for_ice_gathering(pc)
+            if pc.pc.localDescription:
+                pc._answer = pc.pc.localDescription
 
             # Get answer after initialization
             answer = pc.get_answer()
@@ -478,6 +509,11 @@ class SignalingManager:
 
         pc = self._peer_connections[pc_id]
         await pc.renegotiate(sdp=sdp, type=type_, restart_pc=restart_pc)
+
+        # Wait for ICE gathering to complete before retrieving answer SDP
+        await self._wait_for_ice_gathering(pc)
+        if pc.pc.localDescription:
+            pc._answer = pc.pc.localDescription
 
         # Send updated answer
         answer = pc.get_answer()
