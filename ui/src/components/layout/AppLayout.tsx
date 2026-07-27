@@ -15,7 +15,7 @@ function AppHeader() {
   const { toggleSidebar } = useSidebar();
 
   return (
-    <header className="sticky top-0 z-50 flex items-center border-b bg-background px-4 py-2">
+    <header className="sticky top-0 z-50 flex items-center border-b bg-background px-4 py-2 md:hidden">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={toggleSidebar} aria-label="Open menu" className="md:hidden">
           <Menu className="h-5 w-5" />

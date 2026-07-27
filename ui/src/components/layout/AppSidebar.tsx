@@ -49,7 +49,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useAppConfig } from "@/context/AppConfigContext";
 import { useTelephonyConfigWarnings } from "@/context/TelephonyConfigWarningsContext";
 import type { LocalUser } from "@/lib/auth";
 import { useAuth } from "@/lib/auth";
@@ -154,7 +153,6 @@ export function AppSidebar() {
   const router = useRouter();
   const { state, isMobile, setOpenMobile } = useSidebar();
   const { provider, getSelectedTeam, logout, user } = useAuth();
-  const { config } = useAppConfig();
   const { telnyxMissingWebhookPublicKeyCount } = useTelephonyConfigWarnings();
   const hasTelephonyWarning = telnyxMissingWebhookPublicKeyCount > 0;
   const isCollapsed = !isMobile && state === "collapsed";
@@ -168,9 +166,6 @@ export function AppSidebar() {
     selectedTeamRef.current = rawSelectedTeam;
   }
   const selectedTeam = selectedTeamRef.current;
-
-  // Version info from app config context
-  const versionInfo = config ? { ui: config.uiVersion, api: config.apiVersion } : null;
 
   const isActive = (path: string) => pathname.startsWith(path);
 
@@ -249,21 +244,14 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r">
       <SidebarHeader className="border-b px-2 py-3 notranslate" translate="no">
         <div className="flex items-center justify-between">
-          <div className={cn("flex items-center gap-2", isCollapsed && "hidden")}>
+          <div className={cn("flex min-w-0 items-center px-2", isCollapsed && "hidden")}>
             <Link
               href="/"
-              className="notranslate flex items-center gap-2 px-2 text-lg font-bold"
+              className="notranslate truncate text-sm font-semibold tracking-tight text-foreground hover:text-primary transition-colors"
+              title="AZS Solution's AI agent"
               translate="no"
             >
               AZS Solution&apos;s AI agent
-              {versionInfo && (
-                <span
-                  className="notranslate text-xs font-normal text-muted-foreground"
-                  translate="no"
-                >
-                  v{versionInfo.ui}
-                </span>
-              )}
             </Link>
           </div>
 
