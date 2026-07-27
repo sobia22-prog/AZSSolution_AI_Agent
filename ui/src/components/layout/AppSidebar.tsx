@@ -261,10 +261,10 @@ export function AppSidebar() {
           <div className={cn("flex items-center gap-2", isCollapsed && "hidden")}>
             <Link
               href="/"
-              className="notranslate flex items-center gap-2 px-2 text-xl font-bold"
+              className="notranslate flex items-center gap-2 px-2 text-lg font-bold"
               translate="no"
             >
-              Dograh
+              AZS Solution&apos;s AI agent
               {versionInfo && (
                 <span
                   className="notranslate text-xs font-normal text-muted-foreground"

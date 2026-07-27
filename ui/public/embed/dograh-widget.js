@@ -113,7 +113,7 @@
         ...state.config,
         workflowId: configData.workflow_id,
         embedMode: configData.settings?.embedMode || 'floating',
-        containerId: configData.settings?.containerId || 'dograh-inline-container',
+        containerId: configData.settings?.containerId || 'azs-inline-container',
         position: configData.position || DEFAULT_CONFIG.position,
         buttonColor: configData.settings?.buttonColor || '#10b981',
         buttonText: configData.settings?.buttonText || 'Talk to Agent',
@@ -977,7 +977,7 @@
   }
 
   // Public API
-  window.DograhWidget = {
+  window.AZSWidget = window.DograhWidget = {
     // Core methods
     init: init,
     start: startCall,
@@ -1013,7 +1013,7 @@
     // Initialize inline mode manually (for advanced use cases)
     initInline: (options) => {
       if (options.container) {
-        state.config.containerId = options.container.id || 'dograh-inline-container';
+        state.config.containerId = options.container.id || 'azs-inline-container';
       }
       state.config.embedMode = 'inline';
 

@@ -28,7 +28,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dograh",
+  title: "AZS Solution's AI agent",
   description: "Open Source Voice Assistant Workflow Builder",
   icons: {
     icon: "/favicon.ico",
