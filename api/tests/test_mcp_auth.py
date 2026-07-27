@@ -1,8 +1,8 @@
-from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
-from fastapi import HTTPException
+pytest.importorskip("fastmcp")
 
+from unittest.mock import AsyncMock, MagicMock, patch
+from fastapi import HTTPException
 from api.mcp_server.auth import authenticate_mcp_request
 
 

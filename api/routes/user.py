@@ -3,7 +3,7 @@ from typing import List, Literal, Optional, TypedDict, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from loguru import logger
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, EmailStr
 
 from api.db import db_client
 from api.db.models import (
@@ -353,3 +353,76 @@ async def get_voices(
             status_code=500,
             detail=f"Failed to fetch voices for {provider}",
         )
+
+
+# Admin Management Endpoints
+class CreateAdminRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+class AdminUserResponse(BaseModel):
+    id: int
+    email: Optional[str]
+    organization_id: Optional[int]
+
+@router.get("/admins", response_model=List[AdminUserResponse])
+async def list_admins(
+    current_user: UserModel = Depends(get_user),
+) -> List[AdminUserResponse]:
+    """List all admin accounts in the database."""
+    users = await db_client.get_all_users()
+    return [
+        AdminUserResponse(
+            id=u.id,
+            email=u.email,
+            organization_id=u.selected_organization_id,
+        )
+        for u in users
+    ]
+
+@router.post("/admins", response_model=AdminUserResponse)
+async def add_admin(
+    request: CreateAdminRequest,
+    current_user: UserModel = Depends(get_user),
+) -> AdminUserResponse:
+    """Create a new database-backed admin account."""
+    # Check if email is already taken
+    existing_user = await db_client.get_user_by_email(request.email)
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    from api.services.auth.depends import create_user_configuration_with_mps_key
+    from api.utils.auth import hash_password
+
+    # Hash the password and create the user
+    hashed = hash_password(request.password)
+    new_user = await db_client.create_user_with_email(
+        email=request.email,
+        password_hash=hashed,
+        name="Admin",
+    )
+
+    # Link user to the active organization of the current user
+    org_id = current_user.selected_organization_id
+    if org_id:
+        await db_client.add_user_to_organization(new_user.id, org_id)
+        await db_client.update_user_selected_organization(new_user.id, org_id)
+
+        # Create default service configurations for the new admin user
+        try:
+            mps_config = await create_user_configuration_with_mps_key(
+                new_user.id, org_id, new_user.provider_id
+            )
+            if mps_config:
+                await db_client.update_user_configuration(new_user.id, mps_config)
+        except Exception:
+            logger.warning(
+                "Failed to create default configuration for new admin user", exc_info=True
+            )
+
+    return AdminUserResponse(
+        id=new_user.id,
+        email=new_user.email,
+        organization_id=new_user.selected_organization_id,
+    )
+

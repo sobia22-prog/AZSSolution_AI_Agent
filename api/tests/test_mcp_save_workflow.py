@@ -20,9 +20,13 @@ from fastapi import HTTPException
 
 from api.mcp_server.tools.save_workflow import save_workflow
 
-pytestmark = pytest.mark.skipif(
-    shutil.which("node") is None, reason="node binary not available"
-)
+import os
+from pathlib import Path
+node_modules_exist = (Path(__file__).parent.parent / "mcp_server" / "ts_validator" / "node_modules" / "typescript").exists()
+pytestmark = [
+    pytest.mark.skipif(shutil.which("node") is None, reason="node binary not available"),
+    pytest.mark.skipif(not node_modules_exist, reason="ts_validator node_modules not installed"),
+]
 
 
 # ─── Fixtures & helpers ──────────────────────────────────────────────────

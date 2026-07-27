@@ -30,6 +30,8 @@ CORS_ALLOWED_ORIGINS = [
     o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if o.strip()
 ]
 AUTH_PROVIDER = os.getenv("AUTH_PROVIDER", "local")
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@dograh.ai")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "dograhadmin123")
 DOGRAH_MPS_SECRET_KEY = os.getenv("DOGRAH_MPS_SECRET_KEY", None)
 MPS_API_URL = os.getenv("MPS_API_URL", "https://services.dograh.com")
 

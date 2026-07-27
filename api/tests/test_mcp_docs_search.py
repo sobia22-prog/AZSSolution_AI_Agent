@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import pytest
+pytest.importorskip("fastmcp")
+
 import os
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from fastapi import HTTPException
 
 from api.mcp_server.tools import docs_search as docs_search_module

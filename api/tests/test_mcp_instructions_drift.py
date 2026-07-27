@@ -14,13 +14,13 @@ docstring. These tests fail on the two classic drift modes:
 Keep the guide about orchestration (call order, hard constraints) and let
 the tools describe themselves.
 """
-
 from __future__ import annotations
+
+import pytest
+pytest.importorskip("fastmcp")
 
 import re
 from pathlib import Path
-
-import pytest
 
 from api.mcp_server import instructions as instructions_module
 from api.mcp_server.server import mcp

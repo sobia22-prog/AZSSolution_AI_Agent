@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import pytest
+pytest.importorskip("fastmcp")
+
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from fastapi.openapi.utils import get_openapi
 
 from api.app import app

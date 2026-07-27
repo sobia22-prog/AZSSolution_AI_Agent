@@ -1,7 +1,8 @@
+import pytest
+pytest.importorskip("fastmcp")
+
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
 
 from api.mcp_server.tools.workflows import get_workflow
 

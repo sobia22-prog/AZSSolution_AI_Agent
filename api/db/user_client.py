@@ -199,3 +199,10 @@ class UserClient(BaseDBClient):
             await session.commit()
             await session.refresh(user)
             return user
+
+    async def get_all_users(self) -> list[UserModel]:
+        """Fetch all users from the database."""
+        async with self.async_session() as session:
+            result = await session.execute(select(UserModel).order_by(UserModel.id.asc()))
+            return list(result.scalars().all())
+
