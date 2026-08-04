@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useAuth } from "@/lib/auth";
 
 export interface GoogleSheetsNodeEditFormProps {
   values: Record<string, unknown>;
@@ -18,6 +19,8 @@ export function GoogleSheetsNodeEditForm({
   onChange,
   tools = [],
 }: GoogleSheetsNodeEditFormProps) {
+  const { getAccessToken } = useAuth();
+
   const [accounts, setAccounts] = useState<Array<{ uuid: string; name: string }>>([]);
   const [files, setFiles] = useState<Array<{ id: string; name: string; webViewLink?: string }>>([]);
   const [tabs, setTabs] = useState<string[]>([]);
@@ -42,11 +45,26 @@ export function GoogleSheetsNodeEditForm({
     [values, onChange]
   );
 
+  // Helper to build headers with Bearer token
+  const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    try {
+      const token = await getAccessToken();
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      return headers;
+    } catch {
+      return {};
+    }
+  }, [getAccessToken]);
+
   // Fetch mounted Google accounts
   const fetchAccounts = useCallback(async () => {
     setLoadingAccounts(true);
     try {
-      const res = await fetch("/api/v1/integrations/google-drive/accounts");
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/v1/integrations/google-drive/accounts", { headers });
       if (res.ok) {
         const data = await res.json();
         setAccounts(data || []);
@@ -59,7 +77,7 @@ export function GoogleSheetsNodeEditForm({
     } finally {
       setLoadingAccounts(false);
     }
-  }, [credentialUuid, updateField]);
+  }, [credentialUuid, getAuthHeaders, updateField]);
 
   useEffect(() => {
     fetchAccounts();
@@ -70,7 +88,8 @@ export function GoogleSheetsNodeEditForm({
     if (!credUuid) return;
     setLoadingFiles(true);
     try {
-      const res = await fetch(`/api/v1/integrations/google-drive/files?credential_uuid=${credUuid}`);
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/v1/integrations/google-drive/files?credential_uuid=${credUuid}`, { headers });
       if (res.ok) {
         const data = await res.json();
         setFiles(data.files || []);
@@ -80,7 +99,7 @@ export function GoogleSheetsNodeEditForm({
     } finally {
       setLoadingFiles(false);
     }
-  }, []);
+  }, [getAuthHeaders]);
 
   useEffect(() => {
     if (credentialUuid) {
@@ -93,7 +112,8 @@ export function GoogleSheetsNodeEditForm({
     if (!credUuid || !sheetId) return;
     setLoadingTabs(true);
     try {
-      const res = await fetch(`/api/v1/integrations/google-drive/sheets?credential_uuid=${credUuid}&spreadsheet_id=${encodeURIComponent(sheetId)}`);
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/v1/integrations/google-drive/sheets?credential_uuid=${credUuid}&spreadsheet_id=${encodeURIComponent(sheetId)}`, { headers });
       if (res.ok) {
         const data = await res.json();
         setTabs(data.sheets || ["Sheet1"]);
@@ -103,7 +123,7 @@ export function GoogleSheetsNodeEditForm({
     } finally {
       setLoadingTabs(false);
     }
-  }, []);
+  }, [getAuthHeaders]);
 
   useEffect(() => {
     if (credentialUuid && spreadsheetIdOrUrl) {
@@ -116,7 +136,8 @@ export function GoogleSheetsNodeEditForm({
     if (!credUuid || !sheetId) return;
     setLoadingColumns(true);
     try {
-      const res = await fetch(`/api/v1/integrations/google-drive/columns?credential_uuid=${credUuid}&spreadsheet_id=${encodeURIComponent(sheetId)}&sheet_name=${encodeURIComponent(tab)}`);
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/v1/integrations/google-drive/columns?credential_uuid=${credUuid}&spreadsheet_id=${encodeURIComponent(sheetId)}&sheet_name=${encodeURIComponent(tab)}`, { headers });
       if (res.ok) {
         const data = await res.json();
         const cols: string[] = data.columns || [];
@@ -147,14 +168,15 @@ export function GoogleSheetsNodeEditForm({
     } finally {
       setLoadingColumns(false);
     }
-  }, [columnMappings, updateField]);
+  }, [columnMappings, getAuthHeaders, updateField]);
 
   // Handle 1-Click Google OAuth popup
   const handleConnectDrive = async () => {
     setConnectingAuth(true);
     try {
+      const headers = await getAuthHeaders();
       const redirectUri = `${window.location.origin}/api/v1/integrations/google-drive/callback`;
-      const res = await fetch(`/api/v1/integrations/google-drive/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`);
+      const res = await fetch(`/api/v1/integrations/google-drive/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`, { headers });
       if (res.ok) {
         const data = await res.json();
         const popup = window.open(data.auth_url, "ConnectGoogleDrive", "width=550,height=650");
