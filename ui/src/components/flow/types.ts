@@ -6,6 +6,7 @@ export enum NodeType {
     TRIGGER = 'trigger',
     WEBHOOK = 'webhook',
     QA = 'qa',
+    GOOGLE_SHEETS = 'google_sheets',
 }
 
 export type FlowNodeData = {

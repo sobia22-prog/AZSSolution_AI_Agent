@@ -42,6 +42,7 @@ const STYLE_VARIANT_BY_SPEC: Record<string, NodeStyleVariant> = {
     trigger: "trigger",
     webhook: "webhook",
     qa: "qa",
+    google_sheets: "integration",
 };
 
 const HANDLES_BY_SPEC: Record<string, { source: boolean; target: boolean }> = {
@@ -52,6 +53,7 @@ const HANDLES_BY_SPEC: Record<string, { source: boolean; target: boolean }> = {
     trigger: { source: false, target: false },
     webhook: { source: false, target: false },
     qa: { source: false, target: false },
+    google_sheets: { source: false, target: false },
 };
 
 const DOC_URL_BY_SPEC: Record<string, string | undefined> = {
