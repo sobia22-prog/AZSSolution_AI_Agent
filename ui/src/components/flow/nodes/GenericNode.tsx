@@ -15,10 +15,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NODE_DOCUMENTATION_URLS } from "@/constants/documentation";
 import { cn } from "@/lib/utils";
 
-import { GoogleSheetsNodeEditForm } from "./GoogleSheetsNodeEditForm";
 import { NodeContent } from "./common/NodeContent";
 import { NodeEditDialog } from "./common/NodeEditDialog";
 import { useNodeHandlers } from "./common/useNodeHandlers";
+import { GoogleSheetsNodeEditForm } from "./GoogleSheetsNodeEditForm";
 
 // ─── Static per-spec UI maps ──────────────────────────────────────────────
 // Small lookups indexed by spec.name. Keeping these in the renderer (not

@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, Database, Download, FileSpreadsheet, Loader2, RefreshCw, Table } from "lucide-react";
+import { CheckCircle2, Database, FileSpreadsheet, Loader2, RefreshCw, Table } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+import type { ToolResponse } from "@/client/types.gen";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 export interface GoogleSheetsNodeEditFormProps {
   values: Record<string, unknown>;
   onChange: (next: Record<string, unknown>) => void;
-  tools?: Array<{ uuid: string; name: string; parameters?: any }>;
+  tools?: ToolResponse[];
 }
 
 export function GoogleSheetsNodeEditForm({
@@ -21,7 +21,6 @@ export function GoogleSheetsNodeEditForm({
   const [accounts, setAccounts] = useState<Array<{ uuid: string; name: string }>>([]);
   const [files, setFiles] = useState<Array<{ id: string; name: string; webViewLink?: string }>>([]);
   const [tabs, setTabs] = useState<string[]>([]);
-  const [fetchedColumns, setFetchedColumns] = useState<string[]>([]);
 
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [loadingFiles, setLoadingFiles] = useState(false);
@@ -32,10 +31,12 @@ export function GoogleSheetsNodeEditForm({
   const credentialUuid = (values.credential_uuid as string) || "";
   const spreadsheetIdOrUrl = (values.spreadsheet_id_or_url as string) || "";
   const sheetName = (values.sheet_name as string) || "Sheet1";
-  const columnMappings = (values.column_mappings as Array<{ column_name: string; value_template: string }>) || [];
+
+  const rawMappings = (values.column_mappings as Array<{ column_name: string; value_template: string }>) || [];
+  const columnMappings = useMemo(() => rawMappings, [JSON.stringify(rawMappings)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateField = useCallback(
-    (field: string, val: any) => {
+    (field: string, val: unknown) => {
       onChange({ ...values, [field]: val });
     },
     [values, onChange]
@@ -118,17 +119,14 @@ export function GoogleSheetsNodeEditForm({
       const res = await fetch(`/api/v1/integrations/google-drive/columns?credential_uuid=${credUuid}&spreadsheet_id=${encodeURIComponent(sheetId)}&sheet_name=${encodeURIComponent(tab)}`);
       if (res.ok) {
         const data = await res.json();
-        const cols = data.columns || [];
-        setFetchedColumns(cols);
+        const cols: string[] = data.columns || [];
 
-        // Auto-build mappings if empty or new columns found
         if (cols.length > 0) {
           const currentMap = new Map(columnMappings.map(c => [c.column_name, c.value_template]));
           const newMappings = cols.map((col: string) => {
             if (currentMap.has(col)) {
               return { column_name: col, value_template: currentMap.get(col)! };
             }
-            // Auto guess template based on column name
             const normalized = col.toLowerCase();
             let template = `{{gathered_context.${col.toLowerCase().replace(/\s+/g, "_")}}}`;
             if (normalized.includes("time") || normalized.includes("date")) template = "{{call_time}}";
@@ -179,19 +177,29 @@ export function GoogleSheetsNodeEditForm({
     updateField("column_mappings", updated);
   };
 
-  // Variable options for column mapping
-  const availableVariables = [
-    { label: "Call Timestamp", value: "{{call_time}}" },
-    { label: "Caller Phone Number", value: "{{initial_context.phone_number}}" },
-    { label: "Call Summary", value: "{{gathered_context.summary}}" },
-    { label: "Call Disposition", value: "{{gathered_context.call_disposition}}" },
-    { label: "Call Duration (sec)", value: "{{cost_info.call_duration_seconds}}" },
-    { label: "Audio Recording URL", value: "{{recording_url}}" },
-    { label: "Transcript Download URL", value: "{{transcript_url}}" },
-    { label: "Extracted: Customer Name", value: "{{gathered_context.customer_name}}" },
-    { label: "Extracted: Email Address", value: "{{gathered_context.email}}" },
-    { label: "Extracted: Lead Qualification", value: "{{gathered_context.lead_qualification}}" },
-  ];
+  // Build variable options combining built-ins and user tools
+  const availableVariables = useMemo(() => {
+    const vars = [
+      { label: "Call Timestamp", value: "{{call_time}}" },
+      { label: "Caller Phone Number", value: "{{initial_context.phone_number}}" },
+      { label: "Call Summary", value: "{{gathered_context.summary}}" },
+      { label: "Call Disposition", value: "{{gathered_context.call_disposition}}" },
+      { label: "Call Duration (sec)", value: "{{cost_info.call_duration_seconds}}" },
+      { label: "Audio Recording URL", value: "{{recording_url}}" },
+      { label: "Transcript Download URL", value: "{{transcript_url}}" },
+      { label: "Extracted: Customer Name", value: "{{gathered_context.customer_name}}" },
+      { label: "Extracted: Email Address", value: "{{gathered_context.email}}" },
+    ];
+
+    tools.forEach((t) => {
+      vars.push({
+        label: `Tool (${t.name}): ${t.name}_result`,
+        value: `{{gathered_context.${t.name}_result}}`,
+      });
+    });
+
+    return vars;
+  }, [tools]);
 
   return (
     <div className="space-y-5 py-2">
@@ -241,7 +249,7 @@ export function GoogleSheetsNodeEditForm({
           <div className="grid gap-2 pt-1">
             <Select value={credentialUuid} onValueChange={(val) => updateField("credential_uuid", val)}>
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select Connected Account" />
+                <SelectValue placeholder={loadingAccounts ? "Loading accounts..." : "Select Connected Account"} />
               </SelectTrigger>
               <SelectContent>
                 {accounts.map((acc) => (
