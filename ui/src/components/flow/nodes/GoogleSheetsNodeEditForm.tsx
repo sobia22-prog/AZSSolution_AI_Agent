@@ -1,0 +1,371 @@
+import React, { useCallback, useEffect, useState } from "react";
+import { CheckCircle2, Database, Download, FileSpreadsheet, Loader2, RefreshCw, Table } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+
+export interface GoogleSheetsNodeEditFormProps {
+  values: Record<string, unknown>;
+  onChange: (next: Record<string, unknown>) => void;
+  tools?: Array<{ uuid: string; name: string; parameters?: any }>;
+}
+
+export function GoogleSheetsNodeEditForm({
+  values,
+  onChange,
+  tools = [],
+}: GoogleSheetsNodeEditFormProps) {
+  const [accounts, setAccounts] = useState<Array<{ uuid: string; name: string }>>([]);
+  const [files, setFiles] = useState<Array<{ id: string; name: string; webViewLink?: string }>>([]);
+  const [tabs, setTabs] = useState<string[]>([]);
+  const [fetchedColumns, setFetchedColumns] = useState<string[]>([]);
+
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+  const [loadingTabs, setLoadingTabs] = useState(false);
+  const [loadingColumns, setLoadingColumns] = useState(false);
+  const [connectingAuth, setConnectingAuth] = useState(false);
+
+  const credentialUuid = (values.credential_uuid as string) || "";
+  const spreadsheetIdOrUrl = (values.spreadsheet_id_or_url as string) || "";
+  const sheetName = (values.sheet_name as string) || "Sheet1";
+  const columnMappings = (values.column_mappings as Array<{ column_name: string; value_template: string }>) || [];
+
+  const updateField = useCallback(
+    (field: string, val: any) => {
+      onChange({ ...values, [field]: val });
+    },
+    [values, onChange]
+  );
+
+  // Fetch mounted Google accounts
+  const fetchAccounts = useCallback(async () => {
+    setLoadingAccounts(true);
+    try {
+      const res = await fetch("/api/v1/integrations/google-drive/accounts");
+      if (res.ok) {
+        const data = await res.json();
+        setAccounts(data || []);
+        if (data.length > 0 && !credentialUuid) {
+          updateField("credential_uuid", data[0].uuid);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch Google Drive accounts:", err);
+    } finally {
+      setLoadingAccounts(false);
+    }
+  }, [credentialUuid, updateField]);
+
+  useEffect(() => {
+    fetchAccounts();
+  }, [fetchAccounts]);
+
+  // Fetch files when credential_uuid changes
+  const fetchFiles = useCallback(async (credUuid: string) => {
+    if (!credUuid) return;
+    setLoadingFiles(true);
+    try {
+      const res = await fetch(`/api/v1/integrations/google-drive/files?credential_uuid=${credUuid}`);
+      if (res.ok) {
+        const data = await res.json();
+        setFiles(data.files || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch Google Drive files:", err);
+    } finally {
+      setLoadingFiles(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (credentialUuid) {
+      fetchFiles(credentialUuid);
+    }
+  }, [credentialUuid, fetchFiles]);
+
+  // Fetch worksheet tabs when spreadsheet changes
+  const fetchTabs = useCallback(async (credUuid: string, sheetId: string) => {
+    if (!credUuid || !sheetId) return;
+    setLoadingTabs(true);
+    try {
+      const res = await fetch(`/api/v1/integrations/google-drive/sheets?credential_uuid=${credUuid}&spreadsheet_id=${encodeURIComponent(sheetId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setTabs(data.sheets || ["Sheet1"]);
+      }
+    } catch (err) {
+      console.error("Failed to fetch tabs:", err);
+    } finally {
+      setLoadingTabs(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (credentialUuid && spreadsheetIdOrUrl) {
+      fetchTabs(credentialUuid, spreadsheetIdOrUrl);
+    }
+  }, [credentialUuid, spreadsheetIdOrUrl, fetchTabs]);
+
+  // Fetch header columns when sheet_name changes
+  const fetchColumns = useCallback(async (credUuid: string, sheetId: string, tab: string) => {
+    if (!credUuid || !sheetId) return;
+    setLoadingColumns(true);
+    try {
+      const res = await fetch(`/api/v1/integrations/google-drive/columns?credential_uuid=${credUuid}&spreadsheet_id=${encodeURIComponent(sheetId)}&sheet_name=${encodeURIComponent(tab)}`);
+      if (res.ok) {
+        const data = await res.json();
+        const cols = data.columns || [];
+        setFetchedColumns(cols);
+
+        // Auto-build mappings if empty or new columns found
+        if (cols.length > 0) {
+          const currentMap = new Map(columnMappings.map(c => [c.column_name, c.value_template]));
+          const newMappings = cols.map((col: string) => {
+            if (currentMap.has(col)) {
+              return { column_name: col, value_template: currentMap.get(col)! };
+            }
+            // Auto guess template based on column name
+            const normalized = col.toLowerCase();
+            let template = `{{gathered_context.${col.toLowerCase().replace(/\s+/g, "_")}}}`;
+            if (normalized.includes("time") || normalized.includes("date")) template = "{{call_time}}";
+            else if (normalized.includes("phone")) template = "{{initial_context.phone_number}}";
+            else if (normalized.includes("recording")) template = "{{recording_url}}";
+            else if (normalized.includes("transcript")) template = "{{transcript_url}}";
+            else if (normalized.includes("summary")) template = "{{gathered_context.summary}}";
+            else if (normalized.includes("disposition")) template = "{{gathered_context.call_disposition}}";
+            else if (normalized.includes("duration")) template = "{{cost_info.call_duration_seconds}}";
+
+            return { column_name: col, value_template: template };
+          });
+          updateField("column_mappings", newMappings);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch columns:", err);
+    } finally {
+      setLoadingColumns(false);
+    }
+  }, [columnMappings, updateField]);
+
+  // Handle 1-Click Google OAuth popup
+  const handleConnectDrive = async () => {
+    setConnectingAuth(true);
+    try {
+      const redirectUri = `${window.location.origin}/api/v1/integrations/google-drive/callback`;
+      const res = await fetch(`/api/v1/integrations/google-drive/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`);
+      if (res.ok) {
+        const data = await res.json();
+        const popup = window.open(data.auth_url, "ConnectGoogleDrive", "width=550,height=650");
+        const timer = setInterval(() => {
+          if (popup?.closed) {
+            clearInterval(timer);
+            setConnectingAuth(false);
+            fetchAccounts();
+          }
+        }, 1000);
+      }
+    } catch (err) {
+      console.error("Failed to start Google Drive auth:", err);
+      setConnectingAuth(false);
+    }
+  };
+
+  const handleMappingChange = (colName: string, templateVal: string) => {
+    const updated = columnMappings.map(m => m.column_name === colName ? { ...m, value_template: templateVal } : m);
+    updateField("column_mappings", updated);
+  };
+
+  // Variable options for column mapping
+  const availableVariables = [
+    { label: "Call Timestamp", value: "{{call_time}}" },
+    { label: "Caller Phone Number", value: "{{initial_context.phone_number}}" },
+    { label: "Call Summary", value: "{{gathered_context.summary}}" },
+    { label: "Call Disposition", value: "{{gathered_context.call_disposition}}" },
+    { label: "Call Duration (sec)", value: "{{cost_info.call_duration_seconds}}" },
+    { label: "Audio Recording URL", value: "{{recording_url}}" },
+    { label: "Transcript Download URL", value: "{{transcript_url}}" },
+    { label: "Extracted: Customer Name", value: "{{gathered_context.customer_name}}" },
+    { label: "Extracted: Email Address", value: "{{gathered_context.email}}" },
+    { label: "Extracted: Lead Qualification", value: "{{gathered_context.lead_qualification}}" },
+  ];
+
+  return (
+    <div className="space-y-5 py-2">
+      {/* Name & Enable Switch */}
+      <div className="flex items-center justify-between border-b pb-3">
+        <div className="space-y-0.5">
+          <Label className="text-base font-semibold">Google Sheets Export</Label>
+          <p className="text-xs text-muted-foreground">
+            Save post-call summary and tool-extracted lead data to Google Sheets
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="gs-enable" className="text-xs font-medium">Enabled</Label>
+          <Switch
+            id="gs-enable"
+            checked={values.google_sheets_enabled !== false}
+            onCheckedChange={(c) => updateField("google_sheets_enabled", c)}
+          />
+        </div>
+      </div>
+
+      {/* Step 1: Connect Google Drive */}
+      <div className="space-y-2 rounded-lg border p-3.5 bg-muted/20">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+            <span className="text-sm font-medium">1. Mount Google Drive</span>
+          </div>
+          {accounts.length > 0 && (
+            <span className="text-xs text-emerald-600 flex items-center gap-1 font-medium">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Mounted ({accounts.length})
+            </span>
+          )}
+        </div>
+
+        {accounts.length === 0 ? (
+          <Button
+            type="button"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2 mt-2"
+            onClick={handleConnectDrive}
+            disabled={connectingAuth}
+          >
+            {connectingAuth ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
+            Connect / Mount Google Drive
+          </Button>
+        ) : (
+          <div className="grid gap-2 pt-1">
+            <Select value={credentialUuid} onValueChange={(val) => updateField("credential_uuid", val)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select Connected Account" />
+              </SelectTrigger>
+              <SelectContent>
+                {accounts.map((acc) => (
+                  <SelectItem key={acc.uuid} value={acc.uuid}>
+                    {acc.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+
+      {/* Step 2: Select File & Sheet Tab */}
+      {credentialUuid && (
+        <div className="space-y-3 rounded-lg border p-3.5 bg-muted/20">
+          <div className="flex items-center gap-2">
+            <Table className="h-4 w-4 text-blue-600" />
+            <span className="text-sm font-medium">2. Select Spreadsheet & Worksheet Tab</span>
+          </div>
+
+          <div className="grid gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Spreadsheet File</Label>
+              <Select
+                value={spreadsheetIdOrUrl}
+                onValueChange={(val) => {
+                  updateField("spreadsheet_id_or_url", val);
+                  if (credentialUuid && val) fetchTabs(credentialUuid, val);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={loadingFiles ? "Loading files from Drive..." : "Select Excel / Google Sheet File"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {files.map((file) => (
+                    <SelectItem key={file.id} value={file.id}>
+                      {file.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {spreadsheetIdOrUrl && (
+              <div className="space-y-1">
+                <Label className="text-xs">Worksheet Tab</Label>
+                <Select
+                  value={sheetName}
+                  onValueChange={(val) => {
+                    updateField("sheet_name", val);
+                    if (credentialUuid && spreadsheetIdOrUrl && val) {
+                      fetchColumns(credentialUuid, spreadsheetIdOrUrl, val);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={loadingTabs ? "Loading tabs..." : "Select Sheet Tab"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tabs.map((tab) => (
+                      <SelectItem key={tab} value={tab}>
+                        {tab}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Fetch Columns & Map Variables */}
+      {credentialUuid && spreadsheetIdOrUrl && (
+        <div className="space-y-3 rounded-lg border p-3.5 bg-muted/20">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">3. Map Sheet Columns to Extracted Tool Variables</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1 text-xs"
+              onClick={() => fetchColumns(credentialUuid, spreadsheetIdOrUrl, sheetName)}
+              disabled={loadingColumns}
+            >
+              {loadingColumns ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+              Fetch Sheet Columns
+            </Button>
+          </div>
+
+          {columnMappings.length > 0 ? (
+            <div className="space-y-2 pt-1">
+              {columnMappings.map((mapping, idx) => (
+                <div key={idx} className="flex items-center gap-2 bg-background p-2 rounded border">
+                  <span className="text-xs font-semibold w-1/3 truncate text-foreground" title={mapping.column_name}>
+                    {mapping.column_name}
+                  </span>
+                  <span className="text-xs text-muted-foreground">➔</span>
+                  <Select
+                    value={mapping.value_template}
+                    onValueChange={(val) => handleMappingChange(mapping.column_name, val)}
+                  >
+                    <SelectTrigger className="w-2/3 h-8 text-xs">
+                      <SelectValue placeholder="Select Variable" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableVariables.map((v) => (
+                        <SelectItem key={v.value} value={v.value} className="text-xs">
+                          {v.label} ({v.value})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground py-2 text-center">
+              Click &quot;Fetch Sheet Columns&quot; above to automatically detect header columns from your Excel file!
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

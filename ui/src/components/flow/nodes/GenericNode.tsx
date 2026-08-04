@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NODE_DOCUMENTATION_URLS } from "@/constants/documentation";
 import { cn } from "@/lib/utils";
 
+import { GoogleSheetsNodeEditForm } from "./GoogleSheetsNodeEditForm";
 import { NodeContent } from "./common/NodeContent";
 import { NodeEditDialog } from "./common/NodeEditDialog";
 import { useNodeHandlers } from "./common/useNodeHandlers";
@@ -662,28 +663,36 @@ export const GenericNode = memo(({ data, selected, id, type }: GenericNodeProps)
             >
                 {open && spec && (
                     <div className="grid gap-4">
-                        <NodeEditForm
-                            spec={spec}
-                            values={values}
-                            onChange={setValues}
-                            context={{
-                                tools: tools ?? [],
-                                documents: documents ?? [],
-                                recordings: recordings ?? [],
-                                mcpToolFilters:
-                                    (values.mcp_tool_filters as
-                                        | Record<string, string[]>
-                                        | undefined) ?? {},
-                                onMcpToolFiltersChange: (next) =>
-                                    setValues((prev) => ({
-                                        ...prev,
-                                        mcp_tool_filters:
-                                            Object.keys(next).length > 0
-                                                ? next
-                                                : undefined,
-                                    })),
-                            }}
-                        />
+                        {type === "google_sheets" ? (
+                            <GoogleSheetsNodeEditForm
+                                values={values}
+                                onChange={setValues}
+                                tools={tools ?? []}
+                            />
+                        ) : (
+                            <NodeEditForm
+                                spec={spec}
+                                values={values}
+                                onChange={setValues}
+                                context={{
+                                    tools: tools ?? [],
+                                    documents: documents ?? [],
+                                    recordings: recordings ?? [],
+                                    mcpToolFilters:
+                                        (values.mcp_tool_filters as
+                                            | Record<string, string[]>
+                                            | undefined) ?? {},
+                                    onMcpToolFiltersChange: (next) =>
+                                        setValues((prev) => ({
+                                            ...prev,
+                                            mcp_tool_filters:
+                                                Object.keys(next).length > 0
+                                                    ? next
+                                                    : undefined,
+                                        })),
+                                }}
+                            />
+                        )}
                         {type === "trigger" && (
                             <TriggerWebhookUrls
                                 endpoints={buildTriggerEndpoints(data.trigger_path)}

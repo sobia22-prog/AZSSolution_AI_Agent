@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import RedirectResponse
 from loguru import logger
 
 from api.db import db_client
@@ -12,6 +11,8 @@ from api.services.auth.depends import get_user
 from api.services.integrations.google_sheets.client import (
     exchange_code_for_tokens,
     get_google_drive_auth_url,
+    get_sheet_header_columns,
+    get_sheet_tabs,
     list_user_drive_sheets,
     refresh_google_oauth_token,
 )
@@ -20,7 +21,6 @@ router = APIRouter(prefix="/integrations/google-drive", tags=["Google Drive Inte
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 
 @router.get("/auth-url")
@@ -64,7 +64,6 @@ async def oauth_callback(
 
     refresh_token = tokens["refresh_token"]
 
-    # Store mounted Google Drive credential in DB
     credential_name = f"Mounted Google Drive ({user.email or 'Org'})"
     credential_data = {
         "refresh_token": refresh_token,
@@ -79,7 +78,7 @@ async def oauth_callback(
             user_id=user.id,
             name=credential_name,
             description="Mounted Google Drive connection for post-call Google Sheets sync",
-            credential_type="custom_header",  # Store securely in external_credentials
+            credential_type="custom_header",
             credential_data=credential_data,
         )
         return {
@@ -92,20 +91,32 @@ async def oauth_callback(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/files")
-async def list_drive_files(
-    credential_uuid: str = Query(..., description="UUID of mounted Google Drive credential"),
+@router.get("/accounts")
+async def list_mounted_accounts(
     user: UserModel = Depends(get_user),
-) -> Dict[str, Any]:
-    """List Google Sheets and Excel files from the user's mounted Google Drive."""
+) -> List[Dict[str, Any]]:
+    """List all mounted Google Drive accounts for the organization."""
     if not user.selected_organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
 
-    credential = await db_client.get_credential_by_uuid(credential_uuid, user.selected_organization_id)
-    if not credential:
+    credentials = await db_client.get_credentials_for_organization(user.selected_organization_id)
+    accounts = []
+    for c in credentials:
+        if c.credential_data and "refresh_token" in c.credential_data:
+            accounts.append({
+                "uuid": c.credential_uuid,
+                "name": c.name,
+                "created_at": c.created_at,
+            })
+    return accounts
+
+
+async def _get_access_token_for_cred(credential_uuid: str, organization_id: int) -> str:
+    credential = await db_client.get_credential_by_uuid(credential_uuid, organization_id)
+    if not credential or not credential.credential_data:
         raise HTTPException(status_code=404, detail="Mounted Google Drive credential not found")
 
-    cred_data = credential.credential_data or {}
+    cred_data = credential.credential_data
     refresh_token = cred_data.get("refresh_token")
     client_id = cred_data.get("client_id") or GOOGLE_CLIENT_ID
     client_secret = cred_data.get("client_secret") or GOOGLE_CLIENT_SECRET
@@ -117,5 +128,49 @@ async def list_drive_files(
     if not access_token:
         raise HTTPException(status_code=401, detail="Failed to refresh Google Drive access token")
 
+    return access_token
+
+
+@router.get("/files")
+async def list_drive_files(
+    credential_uuid: str = Query(..., description="UUID of mounted Google Drive credential"),
+    user: UserModel = Depends(get_user),
+) -> Dict[str, Any]:
+    """List Google Sheets and Excel files from the user's mounted Google Drive."""
+    if not user.selected_organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    access_token = await _get_access_token_for_cred(credential_uuid, user.selected_organization_id)
     files = await list_user_drive_sheets(access_token)
     return {"files": files}
+
+
+@router.get("/sheets")
+async def list_spreadsheet_tabs(
+    credential_uuid: str = Query(..., description="UUID of mounted Google Drive credential"),
+    spreadsheet_id: str = Query(..., description="Google Spreadsheet ID or URL"),
+    user: UserModel = Depends(get_user),
+) -> Dict[str, Any]:
+    """List worksheet tabs (e.g. Sheet1, Leads) in a Google Spreadsheet."""
+    if not user.selected_organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    access_token = await _get_access_token_for_cred(credential_uuid, user.selected_organization_id)
+    tabs = await get_sheet_tabs(spreadsheet_id, access_token)
+    return {"sheets": tabs}
+
+
+@router.get("/columns")
+async def list_sheet_columns(
+    credential_uuid: str = Query(..., description="UUID of mounted Google Drive credential"),
+    spreadsheet_id: str = Query(..., description="Google Spreadsheet ID or URL"),
+    sheet_name: str = Query("Sheet1", description="Target tab name"),
+    user: UserModel = Depends(get_user),
+) -> Dict[str, Any]:
+    """Fetch header columns (Row 1) from a worksheet tab for visual tool variable mapping."""
+    if not user.selected_organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    access_token = await _get_access_token_for_cred(credential_uuid, user.selected_organization_id)
+    columns = await get_sheet_header_columns(spreadsheet_id, sheet_name, access_token)
+    return {"columns": columns}

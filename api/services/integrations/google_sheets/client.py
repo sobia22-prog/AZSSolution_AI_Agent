@@ -117,6 +117,57 @@ async def list_user_drive_sheets(access_token: str) -> List[Dict[str, Any]]:
         return []
 
 
+async def get_sheet_tabs(spreadsheet_id_or_url: str, access_token: str) -> List[str]:
+    """Fetch worksheet tab names (e.g. Sheet1, Leads) from a Google Spreadsheet file."""
+    spreadsheet_id = extract_spreadsheet_id(spreadsheet_id_or_url)
+    if not spreadsheet_id:
+        return []
+
+    url = f"{GOOGLE_SHEETS_API_URL}/{spreadsheet_id}?fields=sheets.properties.title"
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            res = await client.get(
+                url,
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            res.raise_for_status()
+            data = res.json()
+            sheets = data.get("sheets", [])
+            return [s.get("properties", {}).get("title", "Sheet1") for s in sheets]
+    except Exception as e:
+        logger.error(f"Failed to fetch spreadsheet tabs: {e}")
+        return ["Sheet1"]
+
+
+async def get_sheet_header_columns(
+    spreadsheet_id_or_url: str,
+    sheet_name: str,
+    access_token: str,
+) -> List[str]:
+    """Fetch the header row (Row 1) column names from a worksheet tab."""
+    spreadsheet_id = extract_spreadsheet_id(spreadsheet_id_or_url)
+    if not spreadsheet_id:
+        return []
+
+    range_name = f"{sheet_name}!1:1" if sheet_name else "1:1"
+    url = f"{GOOGLE_SHEETS_API_URL}/{spreadsheet_id}/values/{range_name}"
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            res = await client.get(
+                url,
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            res.raise_for_status()
+            data = res.json()
+            values = data.get("values", [])
+            if values and len(values) > 0:
+                return [str(col).strip() for col in values[0] if str(col).strip()]
+            return []
+    except Exception as e:
+        logger.error(f"Failed to fetch sheet header columns: {e}")
+        return []
+
+
 async def append_row_to_drive_sheet(
     spreadsheet_id_or_url: str,
     sheet_name: str,
