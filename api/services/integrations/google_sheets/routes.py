@@ -139,11 +139,18 @@ async def oauth_callback(
                     <button onclick="window.close()">Close Window</button>
                 </div>
                 <script>
+                    if (window.opener) {
+                        try {
+                            window.opener.postMessage({ type: "GOOGLE_DRIVE_CONNECTED" }, "*");
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    }
                     setTimeout(() => {
                         if (window.opener) {
                             window.close();
                         }
-                    }, 1500);
+                    }, 1200);
                 </script>
             </body>
             </html>

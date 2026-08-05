@@ -72,8 +72,10 @@ export function GoogleSheetsNodeEditForm({
       if (res.ok) {
         const data = await res.json();
         setAccounts(data || []);
-        if (data && data.length > 0 && !credentialUuid) {
-          updateField("credential_uuid", data[0].uuid);
+        if (data && data.length > 0) {
+          // If no credential_uuid or current credential is missing/invalid, select latest
+          const latestUuid = data[0].uuid;
+          updateField("credential_uuid", latestUuid);
         }
       }
     } catch (err) {
@@ -81,10 +83,23 @@ export function GoogleSheetsNodeEditForm({
     } finally {
       setLoadingAccounts(false);
     }
-  }, [credentialUuid, getAuthHeaders, updateField]);
+  }, [getAuthHeaders, updateField]);
 
   useEffect(() => {
     fetchAccounts();
+  }, [fetchAccounts]);
+
+  // Listen for OAuth completion postMessage from popup window
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "GOOGLE_DRIVE_CONNECTED") {
+        setAuthError(null);
+        setConnectingAuth(false);
+        fetchAccounts();
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
   }, [fetchAccounts]);
 
   // Fetch folders when credential_uuid changes
@@ -211,14 +226,7 @@ export function GoogleSheetsNodeEditForm({
       const res = await fetch(`/api/v1/integrations/google-drive/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`, { headers });
       if (res.ok) {
         const data = await res.json();
-        const popup = window.open(data.auth_url, "ConnectGoogleDrive", "width=550,height=650");
-        const timer = setInterval(() => {
-          if (popup?.closed) {
-            clearInterval(timer);
-            setConnectingAuth(false);
-            fetchAccounts();
-          }
-        }, 1000);
+        window.open(data.auth_url, "ConnectGoogleDrive", "width=550,height=650");
       } else {
         const errData = await res.json().catch(() => ({}));
         setAuthError(errData.detail || "Google OAuth Client ID is not configured on the server. Set GOOGLE_CLIENT_ID environment variable in Railway.");
