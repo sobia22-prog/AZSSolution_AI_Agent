@@ -97,6 +97,10 @@ export function GoogleSheetsNodeEditForm({
       if (res.ok) {
         const data = await res.json();
         setFolders(data.folders || [{ id: "root", name: "My Drive (All / Root)" }]);
+        setAuthError(null);
+      } else if (res.status === 401) {
+        const errData = await res.json().catch(() => ({}));
+        setAuthError(errData.detail || "Google Drive connection session expired. Please click 'Re-connect Google Drive' below.");
       }
     } catch (err) {
       console.error("Failed to fetch Google Drive folders:", err);
@@ -115,6 +119,10 @@ export function GoogleSheetsNodeEditForm({
       if (res.ok) {
         const data = await res.json();
         setFiles(data.files || []);
+        setAuthError(null);
+      } else if (res.status === 401) {
+        const errData = await res.json().catch(() => ({}));
+        setAuthError(errData.detail || "Google Drive connection session expired. Please click 'Re-connect Google Drive' below.");
       }
     } catch (err) {
       console.error("Failed to fetch Google Drive files:", err);
@@ -279,7 +287,7 @@ export function GoogleSheetsNodeEditForm({
             <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
             <span className="text-sm font-medium">1. Mount Google Drive</span>
           </div>
-          {accounts.length > 0 && (
+          {accounts.length > 0 && !authError && (
             <span className="text-xs text-emerald-600 flex items-center gap-1 font-medium">
               <CheckCircle2 className="h-3.5 w-3.5" /> Mounted ({accounts.length})
             </span>
@@ -287,19 +295,16 @@ export function GoogleSheetsNodeEditForm({
         </div>
 
         {authError && (
-          <div className="rounded border border-amber-300 bg-amber-50 dark:bg-amber-950/40 p-2.5 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
+          <div className="rounded border border-amber-300 bg-amber-50 dark:bg-amber-950/40 p-2.5 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2 mb-2">
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold">Railway Server Setup Required</p>
+              <p className="font-semibold">Google Connection Notice</p>
               <p className="mt-0.5">{authError}</p>
-              <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
-                Set <code className="bg-amber-200/60 dark:bg-amber-900/60 px-1 rounded">GOOGLE_CLIENT_ID</code> and <code className="bg-amber-200/60 dark:bg-amber-900/60 px-1 rounded">GOOGLE_CLIENT_SECRET</code> in Railway Service Variables.
-              </p>
             </div>
           </div>
         )}
 
-        {accounts.length === 0 ? (
+        {accounts.length === 0 || authError ? (
           <Button
             type="button"
             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2 mt-2"
@@ -307,7 +312,7 @@ export function GoogleSheetsNodeEditForm({
             disabled={connectingAuth}
           >
             {connectingAuth ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
-            Connect / Mount Google Drive
+            {accounts.length > 0 ? "Re-connect / Re-authorize Google Drive" : "Connect / Mount Google Drive"}
           </Button>
         ) : (
           <div className="grid gap-2 pt-1">
