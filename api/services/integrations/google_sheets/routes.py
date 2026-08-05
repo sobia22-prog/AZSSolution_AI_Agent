@@ -196,8 +196,8 @@ async def list_drive_folders(
         raise HTTPException(status_code=404, detail="Mounted Google Drive credential not found")
 
     refresh_token = cred.credential_data["refresh_token"]
-    client_id = cred.credential_data.get("client_id") or GOOGLE_CLIENT_ID or os.getenv("GOOGLE_CLIENT_ID", "")
-    client_secret = cred.credential_data.get("client_secret") or GOOGLE_CLIENT_SECRET or os.getenv("GOOGLE_CLIENT_SECRET", "")
+    client_id = GOOGLE_CLIENT_ID or os.getenv("GOOGLE_CLIENT_ID", "") or cred.credential_data.get("client_id", "")
+    client_secret = GOOGLE_CLIENT_SECRET or os.getenv("GOOGLE_CLIENT_SECRET", "") or cred.credential_data.get("client_secret", "")
 
     tokens = await refresh_google_oauth_token(refresh_token, client_id, client_secret)
     if not tokens or "access_token" not in tokens:
@@ -222,8 +222,8 @@ async def list_drive_files(
         raise HTTPException(status_code=404, detail="Mounted Google Drive credential not found")
 
     refresh_token = cred.credential_data["refresh_token"]
-    client_id = cred.credential_data.get("client_id") or GOOGLE_CLIENT_ID or os.getenv("GOOGLE_CLIENT_ID", "")
-    client_secret = cred.credential_data.get("client_secret") or GOOGLE_CLIENT_SECRET or os.getenv("GOOGLE_CLIENT_SECRET", "")
+    client_id = GOOGLE_CLIENT_ID or os.getenv("GOOGLE_CLIENT_ID", "") or cred.credential_data.get("client_id", "")
+    client_secret = GOOGLE_CLIENT_SECRET or os.getenv("GOOGLE_CLIENT_SECRET", "") or cred.credential_data.get("client_secret", "")
 
     tokens = await refresh_google_oauth_token(refresh_token, client_id, client_secret)
     if not tokens or "access_token" not in tokens:
@@ -248,8 +248,8 @@ async def list_spreadsheet_tabs(
         raise HTTPException(status_code=404, detail="Mounted Google Drive credential not found")
 
     refresh_token = cred.credential_data["refresh_token"]
-    client_id = cred.credential_data.get("client_id") or GOOGLE_CLIENT_ID or os.getenv("GOOGLE_CLIENT_ID", "")
-    client_secret = cred.credential_data.get("client_secret") or GOOGLE_CLIENT_SECRET or os.getenv("GOOGLE_CLIENT_SECRET", "")
+    client_id = GOOGLE_CLIENT_ID or os.getenv("GOOGLE_CLIENT_ID", "") or cred.credential_data.get("client_id", "")
+    client_secret = GOOGLE_CLIENT_SECRET or os.getenv("GOOGLE_CLIENT_SECRET", "") or cred.credential_data.get("client_secret", "")
 
     tokens = await refresh_google_oauth_token(refresh_token, client_id, client_secret)
     if not tokens or "access_token" not in tokens:
@@ -275,8 +275,8 @@ async def list_sheet_columns(
         raise HTTPException(status_code=404, detail="Mounted Google Drive credential not found")
 
     refresh_token = cred.credential_data["refresh_token"]
-    client_id = cred.credential_data.get("client_id") or GOOGLE_CLIENT_ID or os.getenv("GOOGLE_CLIENT_ID", "")
-    client_secret = cred.credential_data.get("client_secret") or GOOGLE_CLIENT_SECRET or os.getenv("GOOGLE_CLIENT_SECRET", "")
+    client_id = GOOGLE_CLIENT_ID or os.getenv("GOOGLE_CLIENT_ID", "") or cred.credential_data.get("client_id", "")
+    client_secret = GOOGLE_CLIENT_SECRET or os.getenv("GOOGLE_CLIENT_SECRET", "") or cred.credential_data.get("client_secret", "")
 
     tokens = await refresh_google_oauth_token(refresh_token, client_id, client_secret)
     if not tokens or "access_token" not in tokens:

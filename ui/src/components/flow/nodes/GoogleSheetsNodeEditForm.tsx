@@ -122,15 +122,14 @@ export function GoogleSheetsNodeEditForm({
         setFolders(data.folders || [{ id: "root", name: "My Drive (All / Root)" }]);
         setAuthError(null);
       } else if (res.status === 401 || res.status === 404) {
-        // Automatically try refreshing accounts if current credential is invalid/expired
-        fetchAccounts();
+        setAuthError("Google Drive session expired or unauthenticated. Click 'Re-connect / Re-authorize Google Drive' below.");
       }
     } catch (err) {
       console.error("Failed to fetch Google Drive folders:", err);
     } finally {
       setLoadingFolders(false);
     }
-  }, [getAuthHeaders, fetchAccounts]);
+  }, [getAuthHeaders]);
 
   // Fetch files when credential_uuid or selectedFolderId changes
   const fetchFiles = useCallback(async (credUuid: string, folderId: string) => {
@@ -144,14 +143,14 @@ export function GoogleSheetsNodeEditForm({
         setFiles(data.files || []);
         setAuthError(null);
       } else if (res.status === 401 || res.status === 404) {
-        fetchAccounts();
+        setAuthError("Google Drive session expired or unauthenticated. Click 'Re-connect / Re-authorize Google Drive' below.");
       }
     } catch (err) {
       console.error("Failed to fetch Google Drive files:", err);
     } finally {
       setLoadingFiles(false);
     }
-  }, [getAuthHeaders, fetchAccounts]);
+  }, [getAuthHeaders]);
 
   useEffect(() => {
     if (credentialUuid) {
