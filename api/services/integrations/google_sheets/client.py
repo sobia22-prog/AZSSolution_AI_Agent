@@ -13,6 +13,9 @@ GOOGLE_DRIVE_API_FILES_URL = "https://www.googleapis.com/drive/v3/files"
 GOOGLE_SHEETS_API_URL = "https://sheets.googleapis.com/v4/spreadsheets"
 
 DEFAULT_SCOPES = [
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive.file",
     "https://www.googleapis.com/auth/drive.readonly",
