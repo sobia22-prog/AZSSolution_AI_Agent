@@ -3,7 +3,6 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { ToolResponse } from "@/client/types.gen";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -192,7 +191,7 @@ export function GoogleSheetsNodeEditForm({
         }, 1000);
       } else {
         const errData = await res.json().catch(() => ({}));
-        setAuthError(errData.detail || "Google OAuth Client ID is not configured on the server. Set GOOGLE_CLIENT_ID environment variable.");
+        setAuthError(errData.detail || "Google OAuth Client ID is not configured on the server. Set GOOGLE_CLIENT_ID environment variable in Railway.");
         setConnectingAuth(false);
       }
     } catch (err) {
@@ -269,10 +268,10 @@ export function GoogleSheetsNodeEditForm({
           <div className="rounded border border-amber-300 bg-amber-50 dark:bg-amber-950/40 p-2.5 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold">Google OAuth Setup Required</p>
+              <p className="font-semibold">Railway Server Setup Required</p>
               <p className="mt-0.5">{authError}</p>
               <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
-                To enable 1-click Google sign-in, set <code className="bg-amber-200/60 dark:bg-amber-900/60 px-1 rounded">GOOGLE_CLIENT_ID</code> and <code className="bg-amber-200/60 dark:bg-amber-900/60 px-1 rounded">GOOGLE_CLIENT_SECRET</code> in Vercel Environment Variables.
+                Set <code className="bg-amber-200/60 dark:bg-amber-900/60 px-1 rounded">GOOGLE_CLIENT_ID</code> and <code className="bg-amber-200/60 dark:bg-amber-900/60 px-1 rounded">GOOGLE_CLIENT_SECRET</code> in Railway Service Variables.
               </p>
             </div>
           </div>
@@ -306,7 +305,7 @@ export function GoogleSheetsNodeEditForm({
         )}
       </div>
 
-      {/* Step 2: Select File & Sheet Tab or Direct Spreadsheet Link */}
+      {/* Step 2: Select Spreadsheet File & Sheet Tab (100% Automated Dropdowns) */}
       <div className="space-y-3 rounded-lg border p-3.5 bg-muted/20">
         <div className="flex items-center gap-2">
           <Table className="h-4 w-4 text-blue-600" />
@@ -314,70 +313,61 @@ export function GoogleSheetsNodeEditForm({
         </div>
 
         <div className="grid gap-3">
-          {accounts.length > 0 ? (
+          <div className="space-y-1">
+            <Label className="text-xs">Spreadsheet File (from Drive)</Label>
+            <Select
+              value={spreadsheetIdOrUrl}
+              onValueChange={(val) => {
+                updateField("spreadsheet_id_or_url", val);
+                if (credentialUuid && val) fetchTabs(credentialUuid, val);
+              }}
+              disabled={!credentialUuid || files.length === 0}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue
+                  placeholder={
+                    !credentialUuid
+                      ? "Mount Google Drive above to load files..."
+                      : loadingFiles
+                      ? "Loading files from Google Drive..."
+                      : "Select Excel / Google Sheet File"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {files.map((file) => (
+                  <SelectItem key={file.id} value={file.id}>
+                    {file.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {spreadsheetIdOrUrl && (
             <div className="space-y-1">
-              <Label className="text-xs">Spreadsheet File (from mounted Drive)</Label>
+              <Label className="text-xs">Worksheet Tab</Label>
               <Select
-                value={spreadsheetIdOrUrl}
+                value={sheetName}
                 onValueChange={(val) => {
-                  updateField("spreadsheet_id_or_url", val);
-                  if (credentialUuid && val) fetchTabs(credentialUuid, val);
+                  updateField("sheet_name", val);
+                  if (credentialUuid && spreadsheetIdOrUrl && val) {
+                    fetchColumns(credentialUuid, spreadsheetIdOrUrl, val);
+                  }
                 }}
+                disabled={loadingTabs}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder={loadingFiles ? "Loading files from Drive..." : "Select Excel / Google Sheet File"} />
+                  <SelectValue placeholder={loadingTabs ? "Loading sheet tabs..." : "Select Sheet Tab"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {files.map((file) => (
-                    <SelectItem key={file.id} value={file.id}>
-                      {file.name}
+                  {tabs.map((tab) => (
+                    <SelectItem key={tab} value={tab}>
+                      {tab}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              <Label className="text-xs">Google Spreadsheet URL or ID</Label>
-              <Input
-                placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlb74OgvE2upmsw/edit"
-                value={spreadsheetIdOrUrl}
-                onChange={(e) => updateField("spreadsheet_id_or_url", e.target.value)}
-              />
-            </div>
-          )}
-
-          {spreadsheetIdOrUrl && (
-            <div className="space-y-1">
-              <Label className="text-xs">Worksheet Tab Name</Label>
-              {tabs.length > 0 ? (
-                <Select
-                  value={sheetName}
-                  onValueChange={(val) => {
-                    updateField("sheet_name", val);
-                    if (credentialUuid && spreadsheetIdOrUrl && val) {
-                      fetchColumns(credentialUuid, spreadsheetIdOrUrl, val);
-                    }
-                  }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={loadingTabs ? "Loading tabs..." : "Select Sheet Tab"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tabs.map((tab) => (
-                      <SelectItem key={tab} value={tab}>
-                        {tab}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input
-                  placeholder="Sheet1"
-                  value={sheetName}
-                  onChange={(e) => updateField("sheet_name", e.target.value)}
-                />
-              )}
             </div>
           )}
         </div>
