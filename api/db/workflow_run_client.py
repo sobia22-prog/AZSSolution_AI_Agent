@@ -35,16 +35,23 @@ class WorkflowRunClient(BaseDBClient):
         organization_id: int | None = None,
     ) -> WorkflowRunModel:
         async with self.async_session() as session:
-            workflow_query = (
-                select(WorkflowModel)
-                .options(joinedload(WorkflowModel.user))
-                .where(
-                    WorkflowModel.id == workflow_id, WorkflowModel.user_id == user_id
-                )
-            )
             if organization_id is not None:
-                workflow_query = workflow_query.where(
-                    WorkflowModel.organization_id == organization_id
+                workflow_query = (
+                    select(WorkflowModel)
+                    .options(joinedload(WorkflowModel.user))
+                    .where(
+                        WorkflowModel.id == workflow_id,
+                        WorkflowModel.organization_id == organization_id,
+                    )
+                )
+            else:
+                workflow_query = (
+                    select(WorkflowModel)
+                    .options(joinedload(WorkflowModel.user))
+                    .where(
+                        WorkflowModel.id == workflow_id,
+                        WorkflowModel.user_id == user_id,
+                    )
                 )
 
             workflow = await session.execute(workflow_query)
