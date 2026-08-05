@@ -1,5 +1,5 @@
 import { AlertCircle, CheckCircle2, Database, FileSpreadsheet, Folder, Loader2, RefreshCw, Table } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ToolResponse } from "@/client/types.gen";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,14 @@ export function GoogleSheetsNodeEditForm({
   tools = [],
 }: GoogleSheetsNodeEditFormProps) {
   const { getAccessToken } = useAuth();
+
+  const onChangeRef = useRef(onChange);
+  const valuesRef = useRef(values);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    valuesRef.current = values;
+  });
 
   const [accounts, setAccounts] = useState<Array<{ uuid: string; name: string }>>([]);
   const [folders, setFolders] = useState<Array<{ id: string; name: string }>>([]);
@@ -42,12 +50,9 @@ export function GoogleSheetsNodeEditForm({
   const rawMappings = (values.column_mappings as Array<{ column_name: string; value_template: string }>) || [];
   const columnMappings = useMemo(() => rawMappings, [JSON.stringify(rawMappings)]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const updateField = useCallback(
-    (field: string, val: unknown) => {
-      onChange({ ...values, [field]: val });
-    },
-    [values, onChange]
-  );
+  const updateField = useCallback((field: string, val: unknown) => {
+    onChangeRef.current({ ...valuesRef.current, [field]: val });
+  }, []);
 
   // Helper to build headers with Bearer token
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
@@ -71,11 +76,14 @@ export function GoogleSheetsNodeEditForm({
       const res = await fetch("/api/v1/integrations/google-drive/accounts", { headers });
       if (res.ok) {
         const data = await res.json();
-        setAccounts(data || []);
-        if (data && data.length > 0) {
-          // If no credential_uuid or current credential is missing/invalid, select latest
-          const latestUuid = data[0].uuid;
-          updateField("credential_uuid", latestUuid);
+        const accountList: Array<{ uuid: string; name: string }> = data || [];
+        setAccounts(accountList);
+        if (accountList.length > 0) {
+          const currentUuid = valuesRef.current.credential_uuid as string;
+          const exists = accountList.some((acc) => acc.uuid === currentUuid);
+          if (!currentUuid || !exists) {
+            updateField("credential_uuid", accountList[0].uuid);
+          }
         }
       }
     } catch (err) {
@@ -113,16 +121,16 @@ export function GoogleSheetsNodeEditForm({
         const data = await res.json();
         setFolders(data.folders || [{ id: "root", name: "My Drive (All / Root)" }]);
         setAuthError(null);
-      } else if (res.status === 401) {
-        const errData = await res.json().catch(() => ({}));
-        setAuthError(errData.detail || "Google Drive connection session expired. Please click 'Re-connect Google Drive' below.");
+      } else if (res.status === 401 || res.status === 404) {
+        // Automatically try refreshing accounts if current credential is invalid/expired
+        fetchAccounts();
       }
     } catch (err) {
       console.error("Failed to fetch Google Drive folders:", err);
     } finally {
       setLoadingFolders(false);
     }
-  }, [getAuthHeaders]);
+  }, [getAuthHeaders, fetchAccounts]);
 
   // Fetch files when credential_uuid or selectedFolderId changes
   const fetchFiles = useCallback(async (credUuid: string, folderId: string) => {
@@ -135,16 +143,15 @@ export function GoogleSheetsNodeEditForm({
         const data = await res.json();
         setFiles(data.files || []);
         setAuthError(null);
-      } else if (res.status === 401) {
-        const errData = await res.json().catch(() => ({}));
-        setAuthError(errData.detail || "Google Drive connection session expired. Please click 'Re-connect Google Drive' below.");
+      } else if (res.status === 401 || res.status === 404) {
+        fetchAccounts();
       }
     } catch (err) {
       console.error("Failed to fetch Google Drive files:", err);
     } finally {
       setLoadingFiles(false);
     }
-  }, [getAuthHeaders]);
+  }, [getAuthHeaders, fetchAccounts]);
 
   useEffect(() => {
     if (credentialUuid) {
