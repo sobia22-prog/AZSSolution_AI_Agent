@@ -1,8 +1,9 @@
-import { CheckCircle2, Database, FileSpreadsheet, Loader2, RefreshCw, Table } from "lucide-react";
+import { AlertCircle, CheckCircle2, Database, FileSpreadsheet, Loader2, RefreshCw, Table } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { ToolResponse } from "@/client/types.gen";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -30,6 +31,7 @@ export function GoogleSheetsNodeEditForm({
   const [loadingTabs, setLoadingTabs] = useState(false);
   const [loadingColumns, setLoadingColumns] = useState(false);
   const [connectingAuth, setConnectingAuth] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const credentialUuid = (values.credential_uuid as string) || "";
   const spreadsheetIdOrUrl = (values.spreadsheet_id_or_url as string) || "";
@@ -173,6 +175,7 @@ export function GoogleSheetsNodeEditForm({
   // Handle 1-Click Google OAuth popup
   const handleConnectDrive = async () => {
     setConnectingAuth(true);
+    setAuthError(null);
     try {
       const headers = await getAuthHeaders();
       const redirectUri = `${window.location.origin}/api/v1/integrations/google-drive/callback`;
@@ -187,9 +190,14 @@ export function GoogleSheetsNodeEditForm({
             fetchAccounts();
           }
         }, 1000);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setAuthError(errData.detail || "Google OAuth Client ID is not configured on the server. Set GOOGLE_CLIENT_ID environment variable.");
+        setConnectingAuth(false);
       }
     } catch (err) {
       console.error("Failed to start Google Drive auth:", err);
+      setAuthError("Failed to connect to Google Drive authorization endpoint.");
       setConnectingAuth(false);
     }
   };
@@ -257,6 +265,19 @@ export function GoogleSheetsNodeEditForm({
           )}
         </div>
 
+        {authError && (
+          <div className="rounded border border-amber-300 bg-amber-50 dark:bg-amber-950/40 p-2.5 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Google OAuth Setup Required</p>
+              <p className="mt-0.5">{authError}</p>
+              <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+                To enable 1-click Google sign-in, set <code className="bg-amber-200/60 dark:bg-amber-900/60 px-1 rounded">GOOGLE_CLIENT_ID</code> and <code className="bg-amber-200/60 dark:bg-amber-900/60 px-1 rounded">GOOGLE_CLIENT_SECRET</code> in Vercel Environment Variables.
+              </p>
+            </div>
+          </div>
+        )}
+
         {accounts.length === 0 ? (
           <Button
             type="button"
@@ -285,17 +306,17 @@ export function GoogleSheetsNodeEditForm({
         )}
       </div>
 
-      {/* Step 2: Select File & Sheet Tab */}
-      {credentialUuid && (
-        <div className="space-y-3 rounded-lg border p-3.5 bg-muted/20">
-          <div className="flex items-center gap-2">
-            <Table className="h-4 w-4 text-blue-600" />
-            <span className="text-sm font-medium">2. Select Spreadsheet & Worksheet Tab</span>
-          </div>
+      {/* Step 2: Select File & Sheet Tab or Direct Spreadsheet Link */}
+      <div className="space-y-3 rounded-lg border p-3.5 bg-muted/20">
+        <div className="flex items-center gap-2">
+          <Table className="h-4 w-4 text-blue-600" />
+          <span className="text-sm font-medium">2. Select Spreadsheet & Worksheet Tab</span>
+        </div>
 
-          <div className="grid gap-3">
+        <div className="grid gap-3">
+          {accounts.length > 0 ? (
             <div className="space-y-1">
-              <Label className="text-xs">Spreadsheet File</Label>
+              <Label className="text-xs">Spreadsheet File (from mounted Drive)</Label>
               <Select
                 value={spreadsheetIdOrUrl}
                 onValueChange={(val) => {
@@ -315,10 +336,21 @@ export function GoogleSheetsNodeEditForm({
                 </SelectContent>
               </Select>
             </div>
+          ) : (
+            <div className="space-y-1">
+              <Label className="text-xs">Google Spreadsheet URL or ID</Label>
+              <Input
+                placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlb74OgvE2upmsw/edit"
+                value={spreadsheetIdOrUrl}
+                onChange={(e) => updateField("spreadsheet_id_or_url", e.target.value)}
+              />
+            </div>
+          )}
 
-            {spreadsheetIdOrUrl && (
-              <div className="space-y-1">
-                <Label className="text-xs">Worksheet Tab</Label>
+          {spreadsheetIdOrUrl && (
+            <div className="space-y-1">
+              <Label className="text-xs">Worksheet Tab Name</Label>
+              {tabs.length > 0 ? (
                 <Select
                   value={sheetName}
                   onValueChange={(val) => {
@@ -339,28 +371,36 @@ export function GoogleSheetsNodeEditForm({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-            )}
-          </div>
+              ) : (
+                <Input
+                  placeholder="Sheet1"
+                  value={sheetName}
+                  onChange={(e) => updateField("sheet_name", e.target.value)}
+                />
+              )}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Step 3: Fetch Columns & Map Variables */}
-      {credentialUuid && spreadsheetIdOrUrl && (
+      {spreadsheetIdOrUrl && (
         <div className="space-y-3 rounded-lg border p-3.5 bg-muted/20">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">3. Map Sheet Columns to Extracted Tool Variables</span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-1 text-xs"
-              onClick={() => fetchColumns(credentialUuid, spreadsheetIdOrUrl, sheetName)}
-              disabled={loadingColumns}
-            >
-              {loadingColumns ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-              Fetch Sheet Columns
-            </Button>
+            {credentialUuid && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1 text-xs"
+                onClick={() => fetchColumns(credentialUuid, spreadsheetIdOrUrl, sheetName)}
+                disabled={loadingColumns}
+              >
+                {loadingColumns ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                Fetch Sheet Columns
+              </Button>
+            )}
           </div>
 
           {columnMappings.length > 0 ? (
