@@ -68,49 +68,7 @@ export function GoogleSheetsNodeEditForm({
     }
   }, [getAccessToken]);
 
-  // Fetch mounted Google accounts
-  const fetchAccounts = useCallback(async () => {
-    setLoadingAccounts(true);
-    try {
-      const headers = await getAuthHeaders();
-      const res = await fetch("/api/v1/integrations/google-drive/accounts", { headers });
-      if (res.ok) {
-        const data = await res.json();
-        const accountList: Array<{ uuid: string; name: string }> = data || [];
-        setAccounts(accountList);
-        if (accountList.length > 0) {
-          const currentUuid = valuesRef.current.credential_uuid as string;
-          const exists = accountList.some((acc) => acc.uuid === currentUuid);
-          if (!currentUuid || !exists) {
-            updateField("credential_uuid", accountList[0].uuid);
-          }
-        }
-      }
-    } catch (err) {
-      console.error("Failed to fetch Google Drive accounts:", err);
-    } finally {
-      setLoadingAccounts(false);
-    }
-  }, [getAuthHeaders, updateField]);
-
-  useEffect(() => {
-    fetchAccounts();
-  }, [fetchAccounts]);
-
-  // Listen for OAuth completion postMessage from popup window
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === "GOOGLE_DRIVE_CONNECTED") {
-        setAuthError(null);
-        setConnectingAuth(false);
-        fetchAccounts();
-      }
-    };
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [fetchAccounts]);
-
-  // Fetch folders when credential_uuid changes
+  // Fetch folders for a credential
   const fetchFolders = useCallback(async (credUuid: string) => {
     if (!credUuid) return;
     setLoadingFolders(true);
@@ -122,7 +80,8 @@ export function GoogleSheetsNodeEditForm({
         setFolders(data.folders || [{ id: "root", name: "My Drive (All / Root)" }]);
         setAuthError(null);
       } else if (res.status === 401 || res.status === 404) {
-        setAuthError("Google Drive session expired or unauthenticated. Click 'Re-connect / Re-authorize Google Drive' below.");
+        const errData = await res.json().catch(() => ({}));
+        setAuthError(errData.detail || "Google Drive connection session expired. Please click 'Re-connect Google Drive' below.");
       }
     } catch (err) {
       console.error("Failed to fetch Google Drive folders:", err);
@@ -131,7 +90,7 @@ export function GoogleSheetsNodeEditForm({
     }
   }, [getAuthHeaders]);
 
-  // Fetch files when credential_uuid or selectedFolderId changes
+  // Fetch files for a credential & folder
   const fetchFiles = useCallback(async (credUuid: string, folderId: string) => {
     if (!credUuid) return;
     setLoadingFiles(true);
@@ -143,7 +102,8 @@ export function GoogleSheetsNodeEditForm({
         setFiles(data.files || []);
         setAuthError(null);
       } else if (res.status === 401 || res.status === 404) {
-        setAuthError("Google Drive session expired or unauthenticated. Click 'Re-connect / Re-authorize Google Drive' below.");
+        const errData = await res.json().catch(() => ({}));
+        setAuthError(errData.detail || "Google Drive connection session expired. Please click 'Re-connect Google Drive' below.");
       }
     } catch (err) {
       console.error("Failed to fetch Google Drive files:", err);
@@ -152,12 +112,58 @@ export function GoogleSheetsNodeEditForm({
     }
   }, [getAuthHeaders]);
 
-  useEffect(() => {
-    if (credentialUuid) {
-      fetchFolders(credentialUuid);
-      fetchFiles(credentialUuid, selectedFolderId);
+  // Fetch mounted Google accounts
+  const fetchAccounts = useCallback(async (autoLoadFiles = false) => {
+    setLoadingAccounts(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/v1/integrations/google-drive/accounts", { headers });
+      if (res.ok) {
+        const data = await res.json();
+        const accountList: Array<{ uuid: string; name: string }> = data || [];
+        setAccounts(accountList);
+
+        if (accountList.length > 0) {
+          const currentUuid = valuesRef.current.credential_uuid as string;
+          const exists = accountList.some((acc) => acc.uuid === currentUuid);
+          const activeUuid = exists ? currentUuid : accountList[0].uuid;
+
+          if (!exists) {
+            updateField("credential_uuid", activeUuid);
+          }
+
+          // Fetch folders and files ONLY when accounts are mounted
+          if (autoLoadFiles || exists) {
+            fetchFolders(activeUuid);
+            fetchFiles(activeUuid, "root");
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch Google Drive accounts:", err);
+    } finally {
+      setLoadingAccounts(false);
     }
-  }, [credentialUuid, selectedFolderId, fetchFolders, fetchFiles]);
+  }, [getAuthHeaders, updateField, fetchFolders, fetchFiles]);
+
+  // Initial load: Fetch accounts first
+  useEffect(() => {
+    fetchAccounts(true);
+  }, [fetchAccounts]);
+
+  // Listen for OAuth completion postMessage from popup window
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "GOOGLE_DRIVE_CONNECTED") {
+        setAuthError(null);
+        setConnectingAuth(false);
+        // Re-fetch accounts and force reload of folders & files after mounting
+        fetchAccounts(true);
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [fetchAccounts]);
 
   // Fetch worksheet tabs when spreadsheet changes
   const fetchTabs = useCallback(async (credUuid: string, sheetId: string) => {
@@ -178,10 +184,10 @@ export function GoogleSheetsNodeEditForm({
   }, [getAuthHeaders]);
 
   useEffect(() => {
-    if (credentialUuid && spreadsheetIdOrUrl) {
+    if (accounts.length > 0 && credentialUuid && spreadsheetIdOrUrl) {
       fetchTabs(credentialUuid, spreadsheetIdOrUrl);
     }
-  }, [credentialUuid, spreadsheetIdOrUrl, fetchTabs]);
+  }, [accounts.length, credentialUuid, spreadsheetIdOrUrl, fetchTabs]);
 
   // Fetch header columns when sheet_name changes
   const fetchColumns = useCallback(async (credUuid: string, sheetId: string, tab: string) => {
@@ -353,7 +359,7 @@ export function GoogleSheetsNodeEditForm({
             <Table className="h-4 w-4 text-blue-600" />
             <span className="text-sm font-medium">2. Select Folder Path & Spreadsheet</span>
           </div>
-          {credentialUuid && (
+          {accounts.length > 0 && credentialUuid && (
             <Button
               type="button"
               variant="ghost"
@@ -385,12 +391,12 @@ export function GoogleSheetsNodeEditForm({
                   fetchFiles(credentialUuid, folderId);
                 }
               }}
-              disabled={!credentialUuid || loadingFolders}
+              disabled={accounts.length === 0 || !credentialUuid || loadingFolders}
             >
               <SelectTrigger className="w-full">
                 <SelectValue
                   placeholder={
-                    !credentialUuid
+                    accounts.length === 0
                       ? "Mount Google Drive above to load folders..."
                       : loadingFolders
                       ? "Loading folders from Google Drive..."
@@ -419,12 +425,12 @@ export function GoogleSheetsNodeEditForm({
                 updateField("spreadsheet_id_or_url", val);
                 if (credentialUuid && val) fetchTabs(credentialUuid, val);
               }}
-              disabled={!credentialUuid || loadingFiles}
+              disabled={accounts.length === 0 || !credentialUuid || loadingFiles}
             >
               <SelectTrigger className="w-full">
                 <SelectValue
                   placeholder={
-                    !credentialUuid
+                    accounts.length === 0
                       ? "Mount Google Drive above to load spreadsheets..."
                       : loadingFiles
                       ? "Loading spreadsheets in folder..."
