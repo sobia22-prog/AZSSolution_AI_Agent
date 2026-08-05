@@ -99,12 +99,44 @@ async def refresh_google_oauth_token(
         return None
 
 
-async def list_user_drive_sheets(access_token: str) -> List[Dict[str, Any]]:
+async def list_user_drive_folders(access_token: str) -> List[Dict[str, Any]]:
+    """List folders from the mounted Google Drive."""
+    query = "mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            res = await client.get(
+                GOOGLE_DRIVE_API_FILES_URL,
+                headers={"Authorization": f"Bearer {access_token}"},
+                params={
+                    "q": query,
+                    "fields": "files(id, name, modifiedTime)",
+                    "pageSize": 100,
+                    "supportsAllDrives": "true",
+                    "includeItemsFromAllDrives": "true",
+                },
+            )
+            folders = [{"id": "root", "name": "My Drive (All / Root)"}]
+            if res.is_success:
+                data = res.json()
+                for f in data.get("files", []):
+                    folders.append({"id": f["id"], "name": f["name"]})
+            return folders
+    except Exception as e:
+        logger.error(f"Failed to list Google Drive folders: {e}")
+        return [{"id": "root", "name": "My Drive (All / Root)"}]
+
+
+async def list_user_drive_sheets(access_token: str, folder_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """List Google Sheets and Excel files from the mounted Google Drive across all folders and shared drives."""
-    query = (
-        "(mimeType = 'application/vnd.google-apps.spreadsheet' or "
-        "mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') and trashed = false"
+    sheet_types = (
+        "mimeType = 'application/vnd.google-apps.spreadsheet' or "
+        "mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'"
     )
+    if folder_id and folder_id != "root":
+        query = f"'{folder_id}' in parents and ({sheet_types}) and trashed = false"
+    else:
+        query = f"({sheet_types}) and trashed = false"
+
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             res = await client.get(

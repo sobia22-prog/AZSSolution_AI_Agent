@@ -1,9 +1,8 @@
-import { AlertCircle, CheckCircle2, Database, FileSpreadsheet, Loader2, RefreshCw, Table } from "lucide-react";
+import { AlertCircle, CheckCircle2, Database, FileSpreadsheet, Folder, Loader2, RefreshCw, Table } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { ToolResponse } from "@/client/types.gen";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -23,10 +22,13 @@ export function GoogleSheetsNodeEditForm({
   const { getAccessToken } = useAuth();
 
   const [accounts, setAccounts] = useState<Array<{ uuid: string; name: string }>>([]);
+  const [folders, setFolders] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedFolderId, setSelectedFolderId] = useState<string>("root");
   const [files, setFiles] = useState<Array<{ id: string; name: string; webViewLink?: string }>>([]);
   const [tabs, setTabs] = useState<string[]>([]);
 
   const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [loadingFolders, setLoadingFolders] = useState(false);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [loadingTabs, setLoadingTabs] = useState(false);
   const [loadingColumns, setLoadingColumns] = useState(false);
@@ -85,13 +87,31 @@ export function GoogleSheetsNodeEditForm({
     fetchAccounts();
   }, [fetchAccounts]);
 
-  // Fetch files when credential_uuid changes
-  const fetchFiles = useCallback(async (credUuid: string) => {
+  // Fetch folders when credential_uuid changes
+  const fetchFolders = useCallback(async (credUuid: string) => {
+    if (!credUuid) return;
+    setLoadingFolders(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/v1/integrations/google-drive/folders?credential_uuid=${credUuid}`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setFolders(data.folders || [{ id: "root", name: "My Drive (All / Root)" }]);
+      }
+    } catch (err) {
+      console.error("Failed to fetch Google Drive folders:", err);
+    } finally {
+      setLoadingFolders(false);
+    }
+  }, [getAuthHeaders]);
+
+  // Fetch files when credential_uuid or selectedFolderId changes
+  const fetchFiles = useCallback(async (credUuid: string, folderId: string) => {
     if (!credUuid) return;
     setLoadingFiles(true);
     try {
       const headers = await getAuthHeaders();
-      const res = await fetch(`/api/v1/integrations/google-drive/files?credential_uuid=${credUuid}`, { headers });
+      const res = await fetch(`/api/v1/integrations/google-drive/files?credential_uuid=${credUuid}&folder_id=${encodeURIComponent(folderId)}`, { headers });
       if (res.ok) {
         const data = await res.json();
         setFiles(data.files || []);
@@ -105,9 +125,10 @@ export function GoogleSheetsNodeEditForm({
 
   useEffect(() => {
     if (credentialUuid) {
-      fetchFiles(credentialUuid);
+      fetchFolders(credentialUuid);
+      fetchFiles(credentialUuid, selectedFolderId);
     }
-  }, [credentialUuid, fetchFiles]);
+  }, [credentialUuid, selectedFolderId, fetchFolders, fetchFiles]);
 
   // Fetch worksheet tabs when spreadsheet changes
   const fetchTabs = useCallback(async (credUuid: string, sheetId: string) => {
@@ -306,12 +327,12 @@ export function GoogleSheetsNodeEditForm({
         )}
       </div>
 
-      {/* Step 2: Select Spreadsheet File & Sheet Tab */}
+      {/* Step 2: Folder Path & Spreadsheet Selection */}
       <div className="space-y-3 rounded-lg border p-3.5 bg-muted/20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Table className="h-4 w-4 text-blue-600" />
-            <span className="text-sm font-medium">2. Select Spreadsheet & Worksheet Tab</span>
+            <span className="text-sm font-medium">2. Select Folder Path & Spreadsheet</span>
           </div>
           {credentialUuid && (
             <Button
@@ -319,20 +340,62 @@ export function GoogleSheetsNodeEditForm({
               variant="ghost"
               size="sm"
               className="h-7 text-xs gap-1"
-              onClick={() => fetchFiles(credentialUuid)}
-              disabled={loadingFiles}
+              onClick={() => {
+                fetchFolders(credentialUuid);
+                fetchFiles(credentialUuid, selectedFolderId);
+              }}
+              disabled={loadingFiles || loadingFolders}
             >
-              {loadingFiles ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-              Refresh Files
+              {loadingFiles || loadingFolders ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+              Refresh Drive
             </Button>
           )}
         </div>
 
         <div className="grid gap-3">
+          {/* Field 1: Folder Path Dropdown */}
           <div className="space-y-1">
-            <Label className="text-xs font-medium">Select Spreadsheet File (from Drive)</Label>
+            <Label className="text-xs font-medium flex items-center gap-1.5">
+              <Folder className="h-3.5 w-3.5 text-amber-600" /> 1. Select Folder Path from Drive
+            </Label>
             <Select
-              value={files.some(f => f.id === spreadsheetIdOrUrl) ? spreadsheetIdOrUrl : ""}
+              value={selectedFolderId}
+              onValueChange={(folderId) => {
+                setSelectedFolderId(folderId);
+                if (credentialUuid) {
+                  fetchFiles(credentialUuid, folderId);
+                }
+              }}
+              disabled={!credentialUuid || loadingFolders}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue
+                  placeholder={
+                    !credentialUuid
+                      ? "Mount Google Drive above to load folders..."
+                      : loadingFolders
+                      ? "Loading folders from Google Drive..."
+                      : "Select Folder Path"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {folders.map((folder) => (
+                  <SelectItem key={folder.id} value={folder.id}>
+                    📁 {folder.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Field 2: Spreadsheet File Dropdown (Filtered by selected folder) */}
+          <div className="space-y-1">
+            <Label className="text-xs font-medium flex items-center gap-1.5">
+              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" /> 2. Select Spreadsheet File (in selected folder)
+            </Label>
+            <Select
+              value={spreadsheetIdOrUrl}
               onValueChange={(val) => {
                 updateField("spreadsheet_id_or_url", val);
                 if (credentialUuid && val) fetchTabs(credentialUuid, val);
@@ -343,12 +406,12 @@ export function GoogleSheetsNodeEditForm({
                 <SelectValue
                   placeholder={
                     !credentialUuid
-                      ? "Mount Google Drive above to load files..."
+                      ? "Mount Google Drive above to load spreadsheets..."
                       : loadingFiles
-                      ? "Loading files from Google Drive..."
+                      ? "Loading spreadsheets in folder..."
                       : files.length > 0
                       ? `Select from ${files.length} Spreadsheet Files`
-                      : "No spreadsheets found in root - paste link below"
+                      : "No spreadsheets found in this folder"
                   }
                 />
               </SelectTrigger>
@@ -362,24 +425,10 @@ export function GoogleSheetsNodeEditForm({
             </Select>
           </div>
 
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Or paste Google Spreadsheet URL / ID (from any folder)</Label>
-            <Input
-              placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlb74OgvE2upmsw/edit"
-              value={spreadsheetIdOrUrl}
-              onChange={(e) => {
-                const val = e.target.value;
-                updateField("spreadsheet_id_or_url", val);
-                if (credentialUuid && val.trim().length > 10) {
-                  fetchTabs(credentialUuid, val);
-                }
-              }}
-            />
-          </div>
-
+          {/* Field 3: Worksheet Tab Dropdown */}
           {spreadsheetIdOrUrl && (
             <div className="space-y-1 pt-1">
-              <Label className="text-xs font-medium">Worksheet Tab</Label>
+              <Label className="text-xs font-medium">3. Select Worksheet Tab</Label>
               <Select
                 value={sheetName}
                 onValueChange={(val) => {

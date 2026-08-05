@@ -14,6 +14,7 @@ from api.services.integrations.google_sheets.client import (
     get_google_drive_auth_url,
     get_sheet_header_columns,
     get_sheet_tabs,
+    list_user_drive_folders,
     list_user_drive_sheets,
     refresh_google_oauth_token,
 )
@@ -164,9 +165,35 @@ async def list_mounted_accounts(
     return accounts
 
 
+@router.get("/folders")
+async def list_drive_folders(
+    credential_uuid: str = Query(..., description="UUID of mounted Google Drive credential"),
+    user: UserModel = Depends(get_user),
+) -> Dict[str, Any]:
+    """List folders in mounted Google Drive."""
+    if not user.selected_organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    cred = await db_client.get_credential(credential_uuid)
+    if not cred or not cred.credential_data or "refresh_token" not in cred.credential_data:
+        raise HTTPException(status_code=404, detail="Mounted Google Drive credential not found")
+
+    refresh_token = cred.credential_data["refresh_token"]
+    client_id = cred.credential_data.get("client_id") or GOOGLE_CLIENT_ID or os.getenv("GOOGLE_CLIENT_ID", "")
+    client_secret = cred.credential_data.get("client_secret") or GOOGLE_CLIENT_SECRET or os.getenv("GOOGLE_CLIENT_SECRET", "")
+
+    tokens = await refresh_google_oauth_token(refresh_token, client_id, client_secret)
+    if not tokens or "access_token" not in tokens:
+        raise HTTPException(status_code=401, detail="Failed to refresh Google OAuth access token")
+
+    folders = await list_user_drive_folders(tokens["access_token"])
+    return {"folders": folders}
+
+
 @router.get("/files")
 async def list_drive_files(
     credential_uuid: str = Query(..., description="UUID of mounted Google Drive credential"),
+    folder_id: Optional[str] = Query(None, description="Optional folder ID filter"),
     user: UserModel = Depends(get_user),
 ) -> Dict[str, Any]:
     """List spreadsheet files in mounted Google Drive."""
@@ -185,7 +212,7 @@ async def list_drive_files(
     if not tokens or "access_token" not in tokens:
         raise HTTPException(status_code=401, detail="Failed to refresh Google OAuth access token")
 
-    files = await list_user_drive_sheets(tokens["access_token"])
+    files = await list_user_drive_sheets(tokens["access_token"], folder_id=folder_id)
     return {"files": files}
 
 
