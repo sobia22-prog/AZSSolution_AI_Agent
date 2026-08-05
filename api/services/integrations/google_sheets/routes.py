@@ -199,11 +199,11 @@ async def list_drive_folders(
     client_id = GOOGLE_CLIENT_ID or os.getenv("GOOGLE_CLIENT_ID", "") or cred.credential_data.get("client_id", "")
     client_secret = GOOGLE_CLIENT_SECRET or os.getenv("GOOGLE_CLIENT_SECRET", "") or cred.credential_data.get("client_secret", "")
 
-    tokens = await refresh_google_oauth_token(refresh_token, client_id, client_secret)
-    if not tokens or "access_token" not in tokens:
+    access_token = await refresh_google_oauth_token(refresh_token, client_id, client_secret)
+    if not access_token:
         raise HTTPException(status_code=401, detail="Failed to refresh Google OAuth access token")
 
-    folders = await list_user_drive_folders(tokens["access_token"])
+    folders = await list_user_drive_folders(access_token)
     return {"folders": folders}
 
 
@@ -225,11 +225,11 @@ async def list_drive_files(
     client_id = GOOGLE_CLIENT_ID or os.getenv("GOOGLE_CLIENT_ID", "") or cred.credential_data.get("client_id", "")
     client_secret = GOOGLE_CLIENT_SECRET or os.getenv("GOOGLE_CLIENT_SECRET", "") or cred.credential_data.get("client_secret", "")
 
-    tokens = await refresh_google_oauth_token(refresh_token, client_id, client_secret)
-    if not tokens or "access_token" not in tokens:
+    access_token = await refresh_google_oauth_token(refresh_token, client_id, client_secret)
+    if not access_token:
         raise HTTPException(status_code=401, detail="Failed to refresh Google OAuth access token")
 
-    files = await list_user_drive_sheets(tokens["access_token"], folder_id=folder_id)
+    files = await list_user_drive_sheets(access_token, folder_id=folder_id)
     return {"files": files}
 
 
@@ -251,11 +251,11 @@ async def list_spreadsheet_tabs(
     client_id = GOOGLE_CLIENT_ID or os.getenv("GOOGLE_CLIENT_ID", "") or cred.credential_data.get("client_id", "")
     client_secret = GOOGLE_CLIENT_SECRET or os.getenv("GOOGLE_CLIENT_SECRET", "") or cred.credential_data.get("client_secret", "")
 
-    tokens = await refresh_google_oauth_token(refresh_token, client_id, client_secret)
-    if not tokens or "access_token" not in tokens:
+    access_token = await refresh_google_oauth_token(refresh_token, client_id, client_secret)
+    if not access_token:
         raise HTTPException(status_code=401, detail="Failed to refresh Google OAuth access token")
 
-    sheets = await get_sheet_tabs(spreadsheet_id, tokens["access_token"])
+    sheets = await get_sheet_tabs(spreadsheet_id, access_token)
     return {"sheets": sheets}
 
 
@@ -278,9 +278,9 @@ async def list_sheet_columns(
     client_id = GOOGLE_CLIENT_ID or os.getenv("GOOGLE_CLIENT_ID", "") or cred.credential_data.get("client_id", "")
     client_secret = GOOGLE_CLIENT_SECRET or os.getenv("GOOGLE_CLIENT_SECRET", "") or cred.credential_data.get("client_secret", "")
 
-    tokens = await refresh_google_oauth_token(refresh_token, client_id, client_secret)
-    if not tokens or "access_token" not in tokens:
+    access_token = await refresh_google_oauth_token(refresh_token, client_id, client_secret)
+    if not access_token:
         raise HTTPException(status_code=401, detail="Failed to refresh Google OAuth access token")
 
-    columns = await get_sheet_header_columns(spreadsheet_id, sheet_name, tokens["access_token"])
+    columns = await get_sheet_header_columns(spreadsheet_id, sheet_name, access_token)
     return {"columns": columns}
