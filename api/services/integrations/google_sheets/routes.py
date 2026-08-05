@@ -174,7 +174,7 @@ async def list_drive_folders(
     if not user.selected_organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
 
-    cred = await db_client.get_credential(credential_uuid)
+    cred = await db_client.get_credential_by_uuid(credential_uuid, user.selected_organization_id)
     if not cred or not cred.credential_data or "refresh_token" not in cred.credential_data:
         raise HTTPException(status_code=404, detail="Mounted Google Drive credential not found")
 
@@ -200,7 +200,7 @@ async def list_drive_files(
     if not user.selected_organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
 
-    cred = await db_client.get_credential(credential_uuid)
+    cred = await db_client.get_credential_by_uuid(credential_uuid, user.selected_organization_id)
     if not cred or not cred.credential_data or "refresh_token" not in cred.credential_data:
         raise HTTPException(status_code=404, detail="Mounted Google Drive credential not found")
 
@@ -226,7 +226,7 @@ async def list_spreadsheet_tabs(
     if not user.selected_organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
 
-    cred = await db_client.get_credential(credential_uuid)
+    cred = await db_client.get_credential_by_uuid(credential_uuid, user.selected_organization_id)
     if not cred or not cred.credential_data or "refresh_token" not in cred.credential_data:
         raise HTTPException(status_code=404, detail="Mounted Google Drive credential not found")
 
@@ -253,7 +253,7 @@ async def list_sheet_columns(
     if not user.selected_organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
 
-    cred = await db_client.get_credential(credential_uuid)
+    cred = await db_client.get_credential_by_uuid(credential_uuid, user.selected_organization_id)
     if not cred or not cred.credential_data or "refresh_token" not in cred.credential_data:
         raise HTTPException(status_code=404, detail="Mounted Google Drive credential not found")
 
