@@ -43,8 +43,8 @@ async def _resolve_access_token(
 
         cred_data = credential.credential_data
         refresh_token = cred_data.get("refresh_token")
-        client_id = cred_data.get("client_id") or os.getenv("GOOGLE_CLIENT_ID", "")
-        client_secret = cred_data.get("client_secret") or os.getenv("GOOGLE_CLIENT_SECRET", "")
+        client_id = os.getenv("GOOGLE_CLIENT_ID", "") or cred_data.get("client_id", "")
+        client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "") or cred_data.get("client_secret", "")
 
         if not refresh_token:
             return None, "Mounted credential missing refresh token"

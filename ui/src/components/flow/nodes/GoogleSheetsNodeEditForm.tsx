@@ -206,8 +206,9 @@ export function GoogleSheetsNodeEditForm({
             if (currentMap.has(col)) {
               return { column_name: col, value_template: currentMap.get(col)! };
             }
-            const normalized = col.toLowerCase();
-            let template = `{{gathered_context.${col.toLowerCase().replace(/\s+/g, "_")}}}`;
+            const normalized = col.toLowerCase().trim().replace(/[\s_]+/g, "");
+            let template = `{{gathered_context.${col.toLowerCase().trim().replace(/[\s_]+/g, "_")}}}`;
+
             if (normalized.includes("time") || normalized.includes("date")) template = "{{call_time}}";
             else if (normalized.includes("phone")) template = "{{initial_context.phone_number}}";
             else if (normalized.includes("recording")) template = "{{recording_url}}";
@@ -279,13 +280,30 @@ export function GoogleSheetsNodeEditForm({
       // Extract tool parameters (e.g. customer_name, city, delivery_area, delivery_address, order_summary, total_amount, payment_method)
       interface ToolWithParams {
         parameters?: Array<{ name?: string } | string>;
+        definition?: {
+          config?: {
+            parameters?: Array<{ name?: string } | string>;
+            body_parameters?: Array<{ name?: string } | string>;
+            query_params?: Array<{ name?: string } | string>;
+          };
+          parameters?: Array<{ name?: string } | string>;
+        };
         http_api_config?: {
           parameters?: Array<{ name?: string } | string>;
           body_parameters?: Array<{ name?: string } | string>;
         };
       }
       const toolObj = t as unknown as ToolWithParams;
-      const rawParams = toolObj.parameters || toolObj.http_api_config?.parameters || toolObj.http_api_config?.body_parameters || [];
+      const rawParams =
+        toolObj.parameters ||
+        toolObj.definition?.config?.parameters ||
+        toolObj.definition?.config?.body_parameters ||
+        toolObj.definition?.config?.query_params ||
+        toolObj.definition?.parameters ||
+        toolObj.http_api_config?.parameters ||
+        toolObj.http_api_config?.body_parameters ||
+        [];
+
       if (Array.isArray(rawParams)) {
         rawParams.forEach((p) => {
           const paramName = typeof p === "string" ? p : p?.name;
