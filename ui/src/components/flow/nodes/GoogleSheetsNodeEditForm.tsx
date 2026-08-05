@@ -256,7 +256,7 @@ export function GoogleSheetsNodeEditForm({
     updateField("column_mappings", updated);
   };
 
-  // Build variable options combining built-ins and user tools
+  // Build variable options combining built-ins, extracted fields, and tool parameters
   const availableVariables = useMemo(() => {
     const vars = [
       { label: "Call Timestamp", value: "{{call_time}}" },
@@ -275,6 +275,28 @@ export function GoogleSheetsNodeEditForm({
         label: `Tool (${t.name}): ${t.name}_result`,
         value: `{{gathered_context.${t.name}_result}}`,
       });
+
+      // Extract tool parameters (e.g. customer_name, city, delivery_area, delivery_address, order_summary, total_amount, payment_method)
+      interface ToolWithParams {
+        parameters?: Array<{ name?: string } | string>;
+        http_api_config?: {
+          parameters?: Array<{ name?: string } | string>;
+          body_parameters?: Array<{ name?: string } | string>;
+        };
+      }
+      const toolObj = t as unknown as ToolWithParams;
+      const rawParams = toolObj.parameters || toolObj.http_api_config?.parameters || toolObj.http_api_config?.body_parameters || [];
+      if (Array.isArray(rawParams)) {
+        rawParams.forEach((p) => {
+          const paramName = typeof p === "string" ? p : p?.name;
+          if (paramName) {
+            vars.push({
+              label: `Tool Param (${t.name} ➔ ${paramName})`,
+              value: `{{gathered_context.${paramName}}}`,
+            });
+          }
+        });
+      }
     });
 
     return vars;
