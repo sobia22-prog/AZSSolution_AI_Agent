@@ -97,14 +97,24 @@ async def oauth_callback(
     }
 
     try:
-        await db_client.create_credential(
-            organization_id=org_id,
-            user_id=user_id,
-            name=credential_name,
-            description="Mounted Google Drive connection for post-call Google Sheets sync",
-            credential_type="custom_header",
-            credential_data=credential_data,
-        )
+        existing_creds = await db_client.get_credentials_for_organization(org_id)
+        existing = next((c for c in existing_creds if c.name == credential_name or (c.credential_data and "refresh_token" in c.credential_data)), None)
+
+        if existing:
+            await db_client.update_credential(
+                credential_uuid=existing.credential_uuid,
+                organization_id=org_id,
+                credential_data=credential_data,
+            )
+        else:
+            await db_client.create_credential(
+                organization_id=org_id,
+                user_id=user_id,
+                name=credential_name,
+                description="Mounted Google Drive connection for post-call Google Sheets sync",
+                credential_type="custom_header",
+                credential_data=credential_data,
+            )
         return HTMLResponse(
             content="""
             <!DOCTYPE html>
