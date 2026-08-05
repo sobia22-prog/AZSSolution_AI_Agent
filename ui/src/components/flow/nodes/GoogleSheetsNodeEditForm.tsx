@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { ToolResponse } from "@/client/types.gen";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -69,7 +70,7 @@ export function GoogleSheetsNodeEditForm({
       if (res.ok) {
         const data = await res.json();
         setAccounts(data || []);
-        if (data.length > 0 && !credentialUuid) {
+        if (data && data.length > 0 && !credentialUuid) {
           updateField("credential_uuid", data[0].uuid);
         }
       }
@@ -305,23 +306,38 @@ export function GoogleSheetsNodeEditForm({
         )}
       </div>
 
-      {/* Step 2: Select Spreadsheet File & Sheet Tab (100% Automated Dropdowns) */}
+      {/* Step 2: Select Spreadsheet File & Sheet Tab */}
       <div className="space-y-3 rounded-lg border p-3.5 bg-muted/20">
-        <div className="flex items-center gap-2">
-          <Table className="h-4 w-4 text-blue-600" />
-          <span className="text-sm font-medium">2. Select Spreadsheet & Worksheet Tab</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Table className="h-4 w-4 text-blue-600" />
+            <span className="text-sm font-medium">2. Select Spreadsheet & Worksheet Tab</span>
+          </div>
+          {credentialUuid && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={() => fetchFiles(credentialUuid)}
+              disabled={loadingFiles}
+            >
+              {loadingFiles ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+              Refresh Files
+            </Button>
+          )}
         </div>
 
         <div className="grid gap-3">
           <div className="space-y-1">
-            <Label className="text-xs">Spreadsheet File (from Drive)</Label>
+            <Label className="text-xs font-medium">Select Spreadsheet File (from Drive)</Label>
             <Select
-              value={spreadsheetIdOrUrl}
+              value={files.some(f => f.id === spreadsheetIdOrUrl) ? spreadsheetIdOrUrl : ""}
               onValueChange={(val) => {
                 updateField("spreadsheet_id_or_url", val);
                 if (credentialUuid && val) fetchTabs(credentialUuid, val);
               }}
-              disabled={!credentialUuid || files.length === 0}
+              disabled={!credentialUuid || loadingFiles}
             >
               <SelectTrigger className="w-full">
                 <SelectValue
@@ -330,7 +346,9 @@ export function GoogleSheetsNodeEditForm({
                       ? "Mount Google Drive above to load files..."
                       : loadingFiles
                       ? "Loading files from Google Drive..."
-                      : "Select Excel / Google Sheet File"
+                      : files.length > 0
+                      ? `Select from ${files.length} Spreadsheet Files`
+                      : "No spreadsheets found in root - paste link below"
                   }
                 />
               </SelectTrigger>
@@ -344,9 +362,24 @@ export function GoogleSheetsNodeEditForm({
             </Select>
           </div>
 
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Or paste Google Spreadsheet URL / ID (from any folder)</Label>
+            <Input
+              placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlb74OgvE2upmsw/edit"
+              value={spreadsheetIdOrUrl}
+              onChange={(e) => {
+                const val = e.target.value;
+                updateField("spreadsheet_id_or_url", val);
+                if (credentialUuid && val.trim().length > 10) {
+                  fetchTabs(credentialUuid, val);
+                }
+              }}
+            />
+          </div>
+
           {spreadsheetIdOrUrl && (
-            <div className="space-y-1">
-              <Label className="text-xs">Worksheet Tab</Label>
+            <div className="space-y-1 pt-1">
+              <Label className="text-xs font-medium">Worksheet Tab</Label>
               <Select
                 value={sheetName}
                 onValueChange={(val) => {

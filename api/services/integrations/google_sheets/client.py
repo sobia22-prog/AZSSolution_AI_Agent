@@ -100,19 +100,27 @@ async def refresh_google_oauth_token(
 
 
 async def list_user_drive_sheets(access_token: str) -> List[Dict[str, Any]]:
-    """List Google Sheets and Excel files from the mounted Google Drive."""
+    """List Google Sheets and Excel files from the mounted Google Drive across all folders and shared drives."""
     query = (
-        "mimeType='application/vnd.google-apps.spreadsheet' or "
-        "mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'"
+        "(mimeType = 'application/vnd.google-apps.spreadsheet' or "
+        "mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') and trashed = false"
     )
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             res = await client.get(
                 GOOGLE_DRIVE_API_FILES_URL,
                 headers={"Authorization": f"Bearer {access_token}"},
-                params={"q": query, "fields": "files(id, name, mimeType, webViewLink, modifiedTime)"},
+                params={
+                    "q": query,
+                    "fields": "files(id, name, mimeType, webViewLink, modifiedTime)",
+                    "pageSize": 100,
+                    "supportsAllDrives": "true",
+                    "includeItemsFromAllDrives": "true",
+                },
             )
-            res.raise_for_status()
+            if not res.is_success:
+                logger.error(f"Google Drive API error ({res.status_code}): {res.text}")
+                return []
             data = res.json()
             return data.get("files", [])
     except Exception as e:
