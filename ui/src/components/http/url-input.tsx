@@ -23,7 +23,7 @@ export function validateUrl(url: string): UrlValidationResult {
     const trimmedUrl = url.trim();
 
     if (!trimmedUrl) {
-        return { valid: false, error: "URL is required" };
+        return { valid: true };
     }
 
     if (!URL_REGEX.test(trimmedUrl)) {

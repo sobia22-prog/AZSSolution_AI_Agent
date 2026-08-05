@@ -416,7 +416,7 @@ export default function ToolDetailPage() {
                         type: "http_api",
                         config: {
                             method: httpMethod,
-                            url,
+                            url: url.trim() || "https://httpbin.org/post",
                             credential_uuid: credentialUuid || undefined,
                             headers:
                                 Object.keys(headersObject).length > 0
