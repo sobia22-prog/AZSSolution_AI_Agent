@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import HTMLResponse
 from loguru import logger
 
 from api.db import db_client
@@ -39,7 +40,7 @@ async def get_auth_url(
             detail="Google OAuth Client ID is not configured on the server. Set GOOGLE_CLIENT_ID environment variable.",
         )
 
-    state = f"org_{user.selected_organization_id}"
+    state = f"org_{user.selected_organization_id}_usr_{user.id}"
     auth_url = get_google_drive_auth_url(client_id, redirect_uri, state)
     return {"auth_url": auth_url}
 
@@ -48,23 +49,45 @@ async def get_auth_url(
 async def oauth_callback(
     code: str = Query(..., description="Authorization code"),
     state: str = Query(..., description="State string"),
-    redirect_uri: str = Query(..., description="Matching redirect URI"),
-    user: UserModel = Depends(get_user),
-) -> Dict[str, Any]:
+    redirect_uri: Optional[str] = Query(None, description="Matching redirect URI"),
+) -> HTMLResponse:
     """Callback endpoint to complete 1-click Google Drive mounting."""
-    if not user.selected_organization_id:
-        raise HTTPException(status_code=400, detail="No organization selected")
-
     client_id = GOOGLE_CLIENT_ID or os.getenv("GOOGLE_CLIENT_ID", "")
     client_secret = GOOGLE_CLIENT_SECRET or os.getenv("GOOGLE_CLIENT_SECRET", "")
 
-    tokens = await exchange_code_for_tokens(code, client_id, client_secret, redirect_uri)
+    # Parse org_id and user_id from state
+    org_id: Optional[int] = None
+    user_id: Optional[int] = None
+    if state and "org_" in state and "_usr_" in state:
+        try:
+            parts = state.split("_usr_")
+            org_id = int(parts[0].replace("org_", ""))
+            user_id = int(parts[1])
+        except Exception:
+            pass
+    elif state and state.startswith("org_"):
+        try:
+            org_id = int(state.replace("org_", ""))
+        except Exception:
+            pass
+
+    if not org_id:
+        return HTMLResponse(
+            content="<h2 style='font-family:sans-serif;color:#ef4444;'>Error: Invalid state parameter</h2>",
+            status_code=400,
+        )
+
+    actual_redirect_uri = redirect_uri or "https://azs-solution-ai-agent.vercel.app/api/v1/integrations/google-drive/callback"
+
+    tokens = await exchange_code_for_tokens(code, client_id, client_secret, actual_redirect_uri)
     if not tokens or "refresh_token" not in tokens:
-        raise HTTPException(status_code=400, detail="Failed to obtain refresh token from Google OAuth")
+        return HTMLResponse(
+            content="<h2 style='font-family:sans-serif;color:#ef4444;'>Error: Failed to obtain refresh token from Google OAuth</h2>",
+            status_code=400,
+        )
 
     refresh_token = tokens["refresh_token"]
-
-    credential_name = f"Mounted Google Drive ({user.email or 'Org'})"
+    credential_name = f"Mounted Google Drive (Org #{org_id})"
     credential_data = {
         "refresh_token": refresh_token,
         "client_id": client_id,
@@ -73,22 +96,52 @@ async def oauth_callback(
     }
 
     try:
-        credential = await db_client.create_credential(
-            organization_id=user.selected_organization_id,
-            user_id=user.id,
+        await db_client.create_credential(
+            organization_id=org_id,
+            user_id=user_id,
             name=credential_name,
             description="Mounted Google Drive connection for post-call Google Sheets sync",
             credential_type="custom_header",
             credential_data=credential_data,
         )
-        return {
-            "status": "success",
-            "message": "Google Drive successfully mounted to AZS Solution's AI Agent!",
-            "credential_uuid": credential.credential_uuid,
-        }
+        return HTMLResponse(
+            content="""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Google Drive Connected</title>
+                <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f8fafc; color: #0f172a; }
+                    .card { background: white; padding: 2.5rem; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.08); text-align: center; max-width: 400px; width: 90%; }
+                    .icon { color: #10b981; font-size: 54px; margin-bottom: 0.75rem; font-weight: bold; }
+                    h2 { margin: 0 0 0.5rem 0; color: #0f172a; font-size: 22px; }
+                    p { color: #64748b; font-size: 14px; margin-bottom: 1.5rem; line-height: 1.5; }
+                    button { background: #10b981; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
+                    button:hover { background: #059669; }
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <div class="icon">✓</div>
+                    <h2>Google Drive Mounted!</h2>
+                    <p>Your Google Drive has been successfully connected to AZS Solution's AI Agent.</p>
+                    <button onclick="window.close()">Close Window</button>
+                </div>
+                <script>
+                    setTimeout(() => {
+                        if (window.opener) {
+                            window.close();
+                        }
+                    }, 1500);
+                </script>
+            </body>
+            </html>
+            """,
+            status_code=200,
+        )
     except Exception as e:
         logger.error(f"Error saving mounted Google Drive credential: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return HTMLResponse(content=f"<h2 style='font-family:sans-serif;color:#ef4444;'>Error saving credential: {e}</h2>", status_code=500)
 
 
 @router.get("/accounts")
@@ -111,66 +164,79 @@ async def list_mounted_accounts(
     return accounts
 
 
-async def _get_access_token_for_cred(credential_uuid: str, organization_id: int) -> str:
-    credential = await db_client.get_credential_by_uuid(credential_uuid, organization_id)
-    if not credential or not credential.credential_data:
-        raise HTTPException(status_code=404, detail="Mounted Google Drive credential not found")
-
-    cred_data = credential.credential_data
-    refresh_token = cred_data.get("refresh_token")
-    client_id = cred_data.get("client_id") or GOOGLE_CLIENT_ID
-    client_secret = cred_data.get("client_secret") or GOOGLE_CLIENT_SECRET
-
-    if not refresh_token:
-        raise HTTPException(status_code=400, detail="Credential missing refresh token")
-
-    access_token = await refresh_google_oauth_token(refresh_token, client_id, client_secret)
-    if not access_token:
-        raise HTTPException(status_code=401, detail="Failed to refresh Google Drive access token")
-
-    return access_token
-
-
 @router.get("/files")
 async def list_drive_files(
     credential_uuid: str = Query(..., description="UUID of mounted Google Drive credential"),
     user: UserModel = Depends(get_user),
 ) -> Dict[str, Any]:
-    """List Google Sheets and Excel files from the user's mounted Google Drive."""
+    """List spreadsheet files in mounted Google Drive."""
     if not user.selected_organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
 
-    access_token = await _get_access_token_for_cred(credential_uuid, user.selected_organization_id)
-    files = await list_user_drive_sheets(access_token)
+    cred = await db_client.get_credential(credential_uuid)
+    if not cred or not cred.credential_data or "refresh_token" not in cred.credential_data:
+        raise HTTPException(status_code=404, detail="Mounted Google Drive credential not found")
+
+    refresh_token = cred.credential_data["refresh_token"]
+    client_id = cred.credential_data.get("client_id") or GOOGLE_CLIENT_ID or os.getenv("GOOGLE_CLIENT_ID", "")
+    client_secret = cred.credential_data.get("client_secret") or GOOGLE_CLIENT_SECRET or os.getenv("GOOGLE_CLIENT_SECRET", "")
+
+    tokens = await refresh_google_oauth_token(refresh_token, client_id, client_secret)
+    if not tokens or "access_token" not in tokens:
+        raise HTTPException(status_code=401, detail="Failed to refresh Google OAuth access token")
+
+    files = await list_user_drive_sheets(tokens["access_token"])
     return {"files": files}
 
 
 @router.get("/sheets")
 async def list_spreadsheet_tabs(
     credential_uuid: str = Query(..., description="UUID of mounted Google Drive credential"),
-    spreadsheet_id: str = Query(..., description="Google Spreadsheet ID or URL"),
+    spreadsheet_id: str = Query(..., description="Spreadsheet ID or URL"),
     user: UserModel = Depends(get_user),
 ) -> Dict[str, Any]:
-    """List worksheet tabs (e.g. Sheet1, Leads) in a Google Spreadsheet."""
+    """List sheet tabs inside a spreadsheet."""
     if not user.selected_organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
 
-    access_token = await _get_access_token_for_cred(credential_uuid, user.selected_organization_id)
-    tabs = await get_sheet_tabs(spreadsheet_id, access_token)
-    return {"sheets": tabs}
+    cred = await db_client.get_credential(credential_uuid)
+    if not cred or not cred.credential_data or "refresh_token" not in cred.credential_data:
+        raise HTTPException(status_code=404, detail="Mounted Google Drive credential not found")
+
+    refresh_token = cred.credential_data["refresh_token"]
+    client_id = cred.credential_data.get("client_id") or GOOGLE_CLIENT_ID or os.getenv("GOOGLE_CLIENT_ID", "")
+    client_secret = cred.credential_data.get("client_secret") or GOOGLE_CLIENT_SECRET or os.getenv("GOOGLE_CLIENT_SECRET", "")
+
+    tokens = await refresh_google_oauth_token(refresh_token, client_id, client_secret)
+    if not tokens or "access_token" not in tokens:
+        raise HTTPException(status_code=401, detail="Failed to refresh Google OAuth access token")
+
+    sheets = await get_sheet_tabs(spreadsheet_id, tokens["access_token"])
+    return {"sheets": sheets}
 
 
 @router.get("/columns")
 async def list_sheet_columns(
     credential_uuid: str = Query(..., description="UUID of mounted Google Drive credential"),
-    spreadsheet_id: str = Query(..., description="Google Spreadsheet ID or URL"),
-    sheet_name: str = Query("Sheet1", description="Target tab name"),
+    spreadsheet_id: str = Query(..., description="Spreadsheet ID or URL"),
+    sheet_name: str = Query("Sheet1", description="Sheet tab name"),
     user: UserModel = Depends(get_user),
 ) -> Dict[str, Any]:
-    """Fetch header columns (Row 1) from a worksheet tab for visual tool variable mapping."""
+    """Fetch header row columns from a spreadsheet tab."""
     if not user.selected_organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
 
-    access_token = await _get_access_token_for_cred(credential_uuid, user.selected_organization_id)
-    columns = await get_sheet_header_columns(spreadsheet_id, sheet_name, access_token)
+    cred = await db_client.get_credential(credential_uuid)
+    if not cred or not cred.credential_data or "refresh_token" not in cred.credential_data:
+        raise HTTPException(status_code=404, detail="Mounted Google Drive credential not found")
+
+    refresh_token = cred.credential_data["refresh_token"]
+    client_id = cred.credential_data.get("client_id") or GOOGLE_CLIENT_ID or os.getenv("GOOGLE_CLIENT_ID", "")
+    client_secret = cred.credential_data.get("client_secret") or GOOGLE_CLIENT_SECRET or os.getenv("GOOGLE_CLIENT_SECRET", "")
+
+    tokens = await refresh_google_oauth_token(refresh_token, client_id, client_secret)
+    if not tokens or "access_token" not in tokens:
+        raise HTTPException(status_code=401, detail="Failed to refresh Google OAuth access token")
+
+    columns = await get_sheet_header_columns(spreadsheet_id, sheet_name, tokens["access_token"])
     return {"columns": columns}
