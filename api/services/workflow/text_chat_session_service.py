@@ -11,6 +11,7 @@ from api.db.models import WorkflowRunTextSessionModel
 from api.db.workflow_run_text_session_client import (
     WorkflowRunTextSessionRevisionConflictError,
 )
+from api.services.integrations import IntegrationCompletionContext, run_completion_handlers
 from api.services.pricing.workflow_run_cost import (
     apply_usage_delta_to_organization,
     build_workflow_run_cost_info,
@@ -275,6 +276,38 @@ async def execute_pending_text_chat_turn(
         cost_info = await build_workflow_run_cost_info(workflow_run)
         if cost_info is not None:
             await db_client.update_workflow_run(run_id, cost_info=cost_info)
+
+        # Execute post-turn integration completion handlers (e.g. Google Sheets Export)
+        try:
+            workflow_definition = (
+                workflow_run.definition.workflow_json
+                if workflow_run and workflow_run.definition
+                else {}
+            )
+            org_id = (
+                workflow_run.workflow.organization_id
+                if workflow_run and workflow_run.workflow
+                else None
+            )
+            if org_id and workflow_definition:
+                integration_results = await run_completion_handlers(
+                    context=IntegrationCompletionContext(
+                        workflow_run_id=run_id,
+                        workflow_run=workflow_run,
+                        workflow_definition=workflow_definition,
+                        definition_id=workflow_run.definition_id,
+                        organization_id=org_id,
+                        public_token=None,
+                    )
+                )
+                if integration_results:
+                    await db_client.update_workflow_run(
+                        run_id, annotations=integration_results
+                    )
+        except Exception as e:
+            logger.error(
+                f"Failed to run completion handlers for text chat run {run_id}: {e}"
+            )
 
     return await _reload_text_chat_session(run_id)
 

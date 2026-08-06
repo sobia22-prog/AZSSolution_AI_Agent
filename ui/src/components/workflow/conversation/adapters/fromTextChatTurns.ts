@@ -79,6 +79,7 @@ function conversationItemsFromTextChatEvents(
         if (eventType === "tool_call_started") {
             const functionName = asString(payload.function_name) ?? "tool";
             const toolCallId = asString(payload.tool_call_id);
+            const lookupKey = toolCallId || functionName;
             items.push({
                 kind: "tool-call",
                 id: toolCallId ?? `${turnId}-tool-${index}`,
@@ -89,16 +90,15 @@ function conversationItemsFromTextChatEvents(
                 status: "running",
                 arguments: payload.arguments,
             });
-            if (toolCallId) {
-                toolCallIndexById.set(toolCallId, items.length - 1);
-            }
+            toolCallIndexById.set(lookupKey, items.length - 1);
             return;
         }
 
         if (eventType === "tool_call_result") {
             const functionName = asString(payload.function_name) ?? "tool";
             const toolCallId = asString(payload.tool_call_id);
-            const existingIndex = toolCallId ? toolCallIndexById.get(toolCallId) : undefined;
+            const lookupKey = toolCallId || functionName;
+            const existingIndex = toolCallIndexById.get(lookupKey);
 
             if (existingIndex !== undefined) {
                 const existingItem = items[existingIndex];
