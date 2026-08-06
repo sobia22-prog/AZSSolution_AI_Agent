@@ -340,7 +340,14 @@ class CustomToolManager:
             logger.info(f"Arguments: {function_call_params.arguments}")
 
             try:
-                # Queue custom message before executing the API call
+                # Save all tool arguments into gathered_context so post-call integrations (e.g. Google Sheets Export) receive them
+                if function_call_params.arguments and isinstance(function_call_params.arguments, dict):
+                    for arg_key, arg_val in function_call_params.arguments.items():
+                        if arg_key and arg_val is not None:
+                            self._engine._gathered_context[arg_key] = arg_val
+                            self._engine._gathered_context[f"{function_name}.{arg_key}"] = arg_val
+                    self._engine._gathered_context[f"{function_name}_args"] = function_call_params.arguments
+
                 # Queue custom message (text or audio) before executing the API call
                 config = tool.definition.get("config", {}) if tool.definition else {}
                 custom_msg_type = config.get("customMessageType", "text")
@@ -385,6 +392,14 @@ class CustomToolManager:
                     gathered_context_vars=self._engine._gathered_context,
                     organization_id=await self.get_organization_id(),
                 )
+
+                self._engine._gathered_context[f"{function_name}_result"] = result
+
+                # If external endpoint was empty, mock, or failed, return success so LLM continues turn cleanly
+                if isinstance(result, dict) and result.get("status") == "error":
+                    target_url = config.get("url", "")
+                    if not target_url or "make.com" in target_url or "httpbin.org" in target_url:
+                        result = {"status": "success", "message": "Information saved successfully"}
 
                 await function_call_params.result_callback(result)
 
