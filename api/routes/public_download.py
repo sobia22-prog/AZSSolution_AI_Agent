@@ -45,26 +45,20 @@ async def download_workflow_artifact(
     Raises:
         HTTPException 404: If token is invalid or artifact not found
     """
-    # 1. Lookup workflow run by token
+    # 1. Lookup workflow run by token, or fallback to numeric ID
     workflow_run = await db_client.get_workflow_run_by_public_token(token)
+    if not workflow_run and token.isdigit():
+        workflow_run, _ = await db_client.get_workflow_run_with_context(int(token))
+
     if not workflow_run:
-        logger.warning(f"Invalid public access token: {token[:8]}...")
+        logger.warning(f"Invalid public access token or run ID: {token[:8]}...")
         raise HTTPException(status_code=404, detail="Invalid or expired token")
 
-    # 2. Get file path based on artifact type
+    # 2. Get file path based on artifact type with fallback to standard artifact paths
     if artifact_type == "recording":
-        file_path = workflow_run.recording_url
+        file_path = workflow_run.recording_url or f"recordings/{workflow_run.id}.wav"
     else:  # transcript
-        file_path = workflow_run.transcript_url
-
-    if not file_path:
-        logger.warning(
-            f"Artifact not found: type={artifact_type}, workflow_run_id={workflow_run.id}"
-        )
-        raise HTTPException(
-            status_code=404,
-            detail=f"No {artifact_type} available for this workflow run",
-        )
+        file_path = workflow_run.transcript_url or f"transcripts/{workflow_run.id}.txt"
 
     # 3. Get storage backend for this workflow run
     try:
