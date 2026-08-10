@@ -1,8 +1,8 @@
 Steps to run dograh virtually
 .\scripts\setup_fork.ps1
 .\venv\Scripts\Activate.ps1
-docker compose -f docker-compose-local.yaml up -d
 .\scripts\setup_requirements.ps1
+docker compose -f docker-compose-local.yaml up -d
 .\scripts\start_services_dev.ps1
 cd ui 
 npm run dev
