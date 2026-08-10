@@ -14,16 +14,54 @@ from api.db import db_client
 from api.utils.artifacts import artifact_url
 
 
+def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
 def _collect_extracted_variable_keys(runs: List[Any]) -> list[str]:
     """Collect all unique extracted variable keys across runs, preserving insertion order."""
     keys: dict[str, None] = {}
     for run in runs:
-        gathered = run.gathered_context or {}
+        gathered = _get_attr(run, "gathered_context") or {}
         extracted = gathered.get("extracted_variables", {})
         if isinstance(extracted, dict):
             for key in extracted:
                 keys.setdefault(key, None)
     return list(keys)
+
+
+async def _ensure_tokens_for_report_runs(runs: List[Any]) -> List[Any]:
+    """Ensure every run has a public_access_token generated before building CSV."""
+    ensured_runs = []
+    for run in runs:
+        token = _get_attr(run, "public_access_token")
+        run_id = _get_attr(run, "id")
+        if not token and run_id:
+            try:
+                token = await db_client.ensure_public_access_token(run_id)
+            except Exception:
+                token = None
+
+        if isinstance(run, dict):
+            run_dict = dict(run)
+            run_dict["public_access_token"] = token
+            ensured_runs.append(run_dict)
+        else:
+            # For Row / tuple / object instances, convert to dict with override
+            ensured_runs.append({
+                "id": _get_attr(run, "id"),
+                "campaign_id": _get_attr(run, "campaign_id"),
+                "workflow_id": _get_attr(run, "workflow_id"),
+                "definition_id": _get_attr(run, "definition_id"),
+                "created_at": _get_attr(run, "created_at"),
+                "initial_context": _get_attr(run, "initial_context"),
+                "gathered_context": _get_attr(run, "gathered_context"),
+                "cost_info": _get_attr(run, "cost_info"),
+                "public_access_token": token,
+            })
+    return ensured_runs
 
 
 def build_run_report_csv(runs: List[Any]) -> io.StringIO:
@@ -51,20 +89,26 @@ def build_run_report_csv(runs: List[Any]) -> io.StringIO:
     writer.writerow(pre_headers + extracted_var_keys + post_headers)
 
     for run in runs:
-        initial = run.initial_context or {}
-        gathered = run.gathered_context or {}
-        cost = run.cost_info or {}
+        initial = _get_attr(run, "initial_context") or {}
+        gathered = _get_attr(run, "gathered_context") or {}
+        cost = _get_attr(run, "cost_info") or {}
+        run_id = _get_attr(run, "id", "")
+        campaign_id = _get_attr(run, "campaign_id")
+        workflow_id = _get_attr(run, "workflow_id", "")
+        definition_id = _get_attr(run, "definition_id")
+        created_at = _get_attr(run, "created_at")
+        token = _get_attr(run, "public_access_token")
 
         call_tags = gathered.get("call_tags", [])
         if isinstance(call_tags, list):
             call_tags = ", ".join(str(t) for t in call_tags)
 
         pre_values = [
-            run.id,
-            run.campaign_id if run.campaign_id is not None else "",
-            run.workflow_id,
-            run.definition_id if run.definition_id is not None else "",
-            run.created_at.isoformat() if run.created_at else "",
+            run_id,
+            campaign_id if campaign_id is not None else "",
+            workflow_id,
+            definition_id if definition_id is not None else "",
+            created_at.isoformat() if created_at else "",
             initial.get("phone_number", ""),
             gathered.get("mapped_call_disposition", ""),
             cost.get("call_duration_seconds", ""),
@@ -77,8 +121,8 @@ def build_run_report_csv(runs: List[Any]) -> io.StringIO:
 
         post_values = [
             call_tags,
-            artifact_url(run.public_access_token, "transcript") or "",
-            artifact_url(run.public_access_token, "recording") or "",
+            artifact_url(token, "transcript") or "",
+            artifact_url(token, "recording") or "",
         ]
 
         writer.writerow(pre_values + extracted_values + post_values)
@@ -96,7 +140,8 @@ async def generate_campaign_report_csv(
     runs = await db_client.get_completed_runs_for_report(
         campaign_id=campaign_id, start_date=start_date, end_date=end_date
     )
-    return build_run_report_csv(runs), f"campaign_{campaign_id}_report.csv"
+    ensured_runs = await _ensure_tokens_for_report_runs(runs)
+    return build_run_report_csv(ensured_runs), f"campaign_{campaign_id}_report.csv"
 
 
 async def generate_workflow_report_csv(
@@ -108,7 +153,8 @@ async def generate_workflow_report_csv(
     runs = await db_client.get_completed_runs_for_report(
         workflow_id=workflow_id, start_date=start_date, end_date=end_date
     )
-    return build_run_report_csv(runs), f"workflow_{workflow_id}_report.csv"
+    ensured_runs = await _ensure_tokens_for_report_runs(runs)
+    return build_run_report_csv(ensured_runs), f"workflow_{workflow_id}_report.csv"
 
 
 async def generate_usage_runs_report_csv(
@@ -127,5 +173,7 @@ async def generate_usage_runs_report_csv(
         end_date=end_date,
         filters=filters,
     )
+    ensured_runs = await _ensure_tokens_for_report_runs(runs)
     timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-    return build_run_report_csv(runs), f"usage_runs_{timestamp}.csv"
+    return build_run_report_csv(ensured_runs), f"usage_runs_{timestamp}.csv"
+

@@ -1,8 +1,9 @@
 'use client';
 
-import { Headphones, Loader2 } from 'lucide-react';
+import { Copy, Headphones, Link, Loader2 } from 'lucide-react';
 import posthog from 'posthog-js';
 import { useCallback, useState } from 'react';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -20,6 +21,7 @@ export function MediaPreviewDialog() {
     const [isOpen, setIsOpen] = useState(false);
     const [audioSignedUrl, setAudioSignedUrl] = useState<string | null>(null);
     const [transcriptContent, setTranscriptContent] = useState<string | null>(null);
+    const [transcriptSignedUrl, setTranscriptSignedUrl] = useState<string | null>(null);
     const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
     const [recordingKey, setRecordingKey] = useState<string | null>(null);
     const [transcriptKey, setTranscriptKey] = useState<string | null>(null);
@@ -31,6 +33,7 @@ export function MediaPreviewDialog() {
             setMediaLoading(true);
             setAudioSignedUrl(null);
             setTranscriptContent(null);
+            setTranscriptSignedUrl(null);
             setRecordingKey(recordingUrl);
             setTranscriptKey(transcriptUrl);
             setSelectedRunId(runId);
@@ -46,6 +49,7 @@ export function MediaPreviewDialog() {
             }
 
             if (transcriptResult) {
+                setTranscriptSignedUrl(transcriptResult);
                 try {
                     const response = await fetch(transcriptResult);
                     const text = await response.text();
@@ -64,6 +68,16 @@ export function MediaPreviewDialog() {
         },
         [],
     );
+
+    const handleCopyLink = async (url: string | null, label: string) => {
+        if (!url) return;
+        try {
+            await navigator.clipboard.writeText(url);
+            toast.success(`${label} copied to clipboard`);
+        } catch (err) {
+            toast.error(`Failed to copy ${label.toLowerCase()}`);
+        }
+    };
 
     return {
         openPreview,
@@ -113,7 +127,25 @@ export function MediaPreviewDialog() {
                         <DialogClose asChild>
                             <Button variant="secondary">Close</Button>
                         </DialogClose>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
+                            {audioSignedUrl && (
+                                <Button
+                                    variant="outline"
+                                    onClick={() => handleCopyLink(audioSignedUrl, 'Recording link')}
+                                >
+                                    <Link className="h-4 w-4 mr-2" />
+                                    Copy Audio Link
+                                </Button>
+                            )}
+                            {transcriptSignedUrl && (
+                                <Button
+                                    variant="outline"
+                                    onClick={() => handleCopyLink(transcriptSignedUrl, 'Transcript link')}
+                                >
+                                    <Link className="h-4 w-4 mr-2" />
+                                    Copy Transcript Link
+                                </Button>
+                            )}
                             {recordingKey && (
                                 <Button variant="outline" onClick={() => downloadFile(recordingKey)}>
                                     Download Recording

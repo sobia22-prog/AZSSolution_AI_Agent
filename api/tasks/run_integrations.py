@@ -28,6 +28,7 @@ from api.services.workflow.dto import (
 )
 from api.services.workflow.qa import run_per_node_qa_analysis
 from api.utils.credential_auth import build_auth_header
+from api.utils.transcript import generate_transcript_text
 from api.utils.template_renderer import render_template
 
 
@@ -356,20 +357,29 @@ def _build_render_context(
         "annotations": workflow_run.annotations or {},
     }
 
+    # Add plain-text transcript if available from logged events
+    logs = workflow_run.logs if isinstance(workflow_run.logs, dict) else {}
+    events = logs.get("events", []) if isinstance(logs.get("events"), list) else []
+    context["transcript_text"] = generate_transcript_text(events)
+
     # Add public download URLs if token is available
     if public_token:
         base_url = (
             f"{BACKEND_API_ENDPOINT}/api/v1/public/download/workflow/{public_token}"
         )
+        context["recording_url"] = f"{base_url}/recording"
+        context["transcript_url"] = f"{base_url}/transcript"
+    else:
         context["recording_url"] = (
-            f"{base_url}/recording" if workflow_run.recording_url else None
+            f"{BACKEND_API_ENDPOINT}/api/v1/public/download/workflow/{workflow_run.public_access_token}/recording"
+            if workflow_run.public_access_token
+            else workflow_run.recording_url
         )
         context["transcript_url"] = (
-            f"{base_url}/transcript" if workflow_run.transcript_url else None
+            f"{BACKEND_API_ENDPOINT}/api/v1/public/download/workflow/{workflow_run.public_access_token}/transcript"
+            if workflow_run.public_access_token
+            else workflow_run.transcript_url
         )
-    else:
-        context["recording_url"] = workflow_run.recording_url
-        context["transcript_url"] = workflow_run.transcript_url
 
     return context
 

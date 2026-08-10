@@ -163,6 +163,20 @@ async def process_workflow_completion(
                 except Exception as e:
                     logger.warning(f"Failed to clean up temp transcript file: {e}")
 
+    # Ensure recording_url, transcript_url, and public_access_token are persisted for this run
+    default_rec_url = f"recordings/{workflow_run_id}.wav"
+    default_trans_url = f"transcripts/{workflow_run_id}.txt"
+    try:
+        await db_client.update_workflow_run(
+            run_id=workflow_run_id,
+            recording_url=default_rec_url,
+            transcript_url=default_trans_url,
+            storage_backend=storage_backend.value,
+        )
+        await db_client.ensure_public_access_token(workflow_run_id)
+    except Exception as e:
+        logger.error(f"Error persisting default artifact URLs and token for workflow {workflow_run_id}: {e}")
+
     # Step 3: Run integrations including QA analysis (after uploads are complete)
     try:
         await run_integrations_post_workflow_run(_ctx, workflow_run_id)
