@@ -1,6 +1,6 @@
 import os
 import tempfile
-from typing import Literal
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import FileResponse, RedirectResponse
@@ -13,46 +13,46 @@ from api.utils.transcript import generate_transcript_text
 router = APIRouter(prefix="/public/download")
 
 
-@router.get("/workflow/{token}/{artifact_type}")
-async def download_workflow_artifact(
+async def _handle_artifact_download(
     token: str,
-    artifact_type: Literal["recording", "transcript"],
-    inline: bool = Query(
-        default=True, description="Display inline in browser instead of download"
-    ),
-):
-    """Download or stream a workflow recording or transcript via public access token.
+    artifact_type: str,
+    inline: bool = True,
+) -> Response:
+    """Core handler for resolving workflow run artifacts and streaming them directly."""
+    token = token.strip()
+    artifact_type = artifact_type.lower().strip()
 
-    This endpoint:
-    1. Validates the public access token (or numeric run ID fallback)
-    2. Looks up the corresponding workflow run
-    3. Serves the transcript text or streams the audio file directly
-    4. Falls back to signed URL redirect if direct stream fails
+    if artifact_type not in ["recording", "transcript"]:
+        artifact_type = "recording"
 
-    Args:
-        token: The public access token (UUID format) or numeric run ID
-        artifact_type: Type of artifact - "recording" or "transcript"
-        inline: If true, sets Content-Disposition to inline for browser preview
+    logger.info(f"Processing public download request: token='{token}', artifact_type='{artifact_type}', inline={inline}")
 
-    Returns:
-        Response, FileResponse, or RedirectResponse
-    """
-    # 1. Lookup workflow run by token, or fallback to numeric ID
+    # 1. Lookup workflow run by token UUID, or numeric run ID fallback
     workflow_run = await db_client.get_workflow_run_by_public_token(token)
     if not workflow_run and token.isdigit():
         workflow_run, _ = await db_client.get_workflow_run_with_context(int(token))
 
     if not workflow_run:
-        logger.warning(f"Invalid public access token or run ID: {token[:8]}...")
-        raise HTTPException(status_code=404, detail="Invalid or expired token")
+        logger.warning(f"Workflow run not found for token: '{token}'")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Workflow run not found for public token: {token}",
+        )
 
-    # 2. For transcripts, serve directly from logged events if available
+    # Ensure token exists on workflow_run object
+    if not workflow_run.public_access_token:
+        try:
+            await db_client.ensure_public_access_token(workflow_run.id)
+        except Exception as e:
+            logger.warning(f"Failed to ensure public token for run {workflow_run.id}: {e}")
+
+    # 2. For transcripts: first check logged speech events in database (100% reliable)
     if artifact_type == "transcript":
         logs = workflow_run.logs if isinstance(workflow_run.logs, dict) else {}
         events = logs.get("events", []) if isinstance(logs.get("events"), list) else []
         transcript_text = generate_transcript_text(events)
 
-        if transcript_text:
+        if transcript_text and transcript_text.strip():
             disposition = "inline" if inline else f'attachment; filename="transcript_{workflow_run.id}.txt"'
             return Response(
                 content=transcript_text,
@@ -60,25 +60,27 @@ async def download_workflow_artifact(
                 headers={"Content-Disposition": disposition},
             )
 
-    # 3. Get file path based on artifact type with fallback to standard artifact paths
+    # 3. Determine file path in storage
     if artifact_type == "recording":
         file_path = workflow_run.recording_url or f"recordings/{workflow_run.id}.wav"
-    else:  # transcript
+    else:
         file_path = workflow_run.transcript_url or f"transcripts/{workflow_run.id}.txt"
 
-    # 4. Get storage backend for this workflow run
+    # 4. Get storage backend
     try:
         storage = get_storage_for_backend(workflow_run.storage_backend)
-    except ValueError as e:
-        logger.error(f"Invalid storage backend: {workflow_run.storage_backend}")
-        raise HTTPException(status_code=500, detail="Storage configuration error")
+    except Exception as e:
+        logger.error(f"Error resolving storage backend '{workflow_run.storage_backend}': {e}")
+        # Fallback to default storage filesystem
+        from api.services.storage import storage_fs
+        storage = storage_fs
 
-    # 5. Attempt direct file download and response (bypassing external endpoint redirects)
+    # 5. Attempt direct file download & stream
     try:
         temp_dir = tempfile.gettempdir()
         ext = "wav" if artifact_type == "recording" else "txt"
         local_file = os.path.join(temp_dir, f"public_{workflow_run.id}_{artifact_type}.{ext}")
-        
+
         success = await storage.adownload_file(file_path, local_file)
         if success and os.path.exists(local_file) and os.path.getsize(local_file) > 0:
             media_type = "audio/wav" if artifact_type == "recording" else "text/plain; charset=utf-8"
@@ -90,9 +92,9 @@ async def download_workflow_artifact(
                 content_disposition_type="inline" if inline else "attachment",
             )
     except Exception as e:
-        logger.warning(f"Direct file download failed for {artifact_type} ({file_path}): {e}")
+        logger.warning(f"Direct storage download failed for {artifact_type} ({file_path}): {e}")
 
-    # 6. Fallback to signed URL redirect (1 hour expiration)
+    # 6. Fallback to signed URL redirect if available
     try:
         signed_url = await storage.aget_signed_url(
             file_path=file_path,
@@ -102,9 +104,54 @@ async def download_workflow_artifact(
         if signed_url:
             return RedirectResponse(url=signed_url, status_code=302)
     except Exception as e:
-        logger.error(f"Failed to generate signed URL: {e}")
+        logger.error(f"Signed URL generation failed for {file_path}: {e}")
 
-    raise HTTPException(
-        status_code=404,
-        detail=f"{artifact_type.capitalize()} is currently unavailable for this run",
+    # 7. Explicit detail error if file is missing
+    detail_msg = (
+        f"Audio recording is not available for call run {workflow_run.id}."
+        if artifact_type == "recording"
+        else f"Transcript is not available for call run {workflow_run.id}."
     )
+    raise HTTPException(status_code=404, detail=detail_msg)
+
+
+@router.get("/workflow/{token}/{artifact_type}")
+@router.get("/workflow/{token}/{artifact_type}/")
+async def download_workflow_artifact(
+    token: str,
+    artifact_type: str,
+    inline: bool = Query(default=True),
+):
+    """Download workflow artifact via /workflow/{token}/{artifact_type}."""
+    return await _handle_artifact_download(token=token, artifact_type=artifact_type, inline=inline)
+
+
+@router.get("/workflow/{token}")
+@router.get("/workflow/{token}/")
+async def download_workflow_default(
+    token: str,
+    inline: bool = Query(default=True),
+):
+    """Fallback route for /workflow/{token} defaulting to recording."""
+    return await _handle_artifact_download(token=token, artifact_type="recording", inline=inline)
+
+
+@router.get("/recording/{token}")
+@router.get("/recording/{token}/")
+async def download_recording_alias(
+    token: str,
+    inline: bool = Query(default=True),
+):
+    """Alias route for /recording/{token}."""
+    return await _handle_artifact_download(token=token, artifact_type="recording", inline=inline)
+
+
+@router.get("/transcript/{token}")
+@router.get("/transcript/{token}/")
+async def download_transcript_alias(
+    token: str,
+    inline: bool = Query(default=True),
+):
+    """Alias route for /transcript/{token}."""
+    return await _handle_artifact_download(token=token, artifact_type="transcript", inline=inline)
+
