@@ -363,21 +363,21 @@ def _build_render_context(
     context["transcript_text"] = generate_transcript_text(events)
 
     # Add public download URLs if token is available
+    base_endpoint = BACKEND_API_ENDPOINT.rstrip("/") if BACKEND_API_ENDPOINT else ""
     if public_token:
-        base_url = (
-            f"{BACKEND_API_ENDPOINT}/api/v1/public/download/workflow/{public_token}"
-        )
+        base_url = f"{base_endpoint}/api/v1/public/download/workflow/{public_token}"
         context["recording_url"] = f"{base_url}/recording"
         context["transcript_url"] = f"{base_url}/transcript"
     else:
+        token = workflow_run.public_access_token
         context["recording_url"] = (
-            f"{BACKEND_API_ENDPOINT}/api/v1/public/download/workflow/{workflow_run.public_access_token}/recording"
-            if workflow_run.public_access_token
+            f"{base_endpoint}/api/v1/public/download/workflow/{token}/recording"
+            if token
             else workflow_run.recording_url
         )
         context["transcript_url"] = (
-            f"{BACKEND_API_ENDPOINT}/api/v1/public/download/workflow/{workflow_run.public_access_token}/transcript"
-            if workflow_run.public_access_token
+            f"{base_endpoint}/api/v1/public/download/workflow/{token}/transcript"
+            if token
             else workflow_run.transcript_url
         )
 

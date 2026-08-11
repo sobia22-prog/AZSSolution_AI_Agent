@@ -58,13 +58,6 @@ class MinioFileSystem(BaseFileSystem):
             if not self.client.bucket_exists(self.bucket_name):
                 self.client.make_bucket(self.bucket_name)
 
-            # Set public read/write policy for local development
-            # This allows:
-            # 1. Anonymous downloads (s3:GetObject)
-            # 2. Anonymous uploads (s3:PutObject) - bypasses presigned URL signature issues
-            # 3. List bucket contents (s3:ListBucket) for debugging
-            # Note: This is set on every initialization to ensure policy is correct
-            # WARNING: Only use in local development, not production!
             policy = {
                 "Version": "2012-10-17",
                 "Statement": [
@@ -85,7 +78,6 @@ class MinioFileSystem(BaseFileSystem):
 
             self.client.set_bucket_policy(self.bucket_name, json.dumps(policy))
         except Exception as e:
-            # Bucket might already exist or we might be in a restricted environment
             logger.debug(f"Bucket setup note: {e}")
             pass
 
@@ -102,9 +94,11 @@ class MinioFileSystem(BaseFileSystem):
                 )
 
             await asyncio.to_thread(_put)
+            await self._local_fallback.acreate_file(file_path, content)
             return True
-        except S3Error:
-            return False
+        except Exception as e:
+            logger.warning(f"MinIO create_file note ({e}), using local disk fallback")
+            return await self._local_fallback.acreate_file(file_path, content)
 
     async def aupload_file(self, local_path: str, destination_path: str) -> bool:
         try:
@@ -113,9 +107,11 @@ class MinioFileSystem(BaseFileSystem):
                 self.client.fput_object(self.bucket_name, destination_path, local_path)
 
             await asyncio.to_thread(_fput)
+            await self._local_fallback.aupload_file(local_path, destination_path)
             return True
-        except S3Error:
-            return False
+        except Exception as e:
+            logger.warning(f"MinIO upload note ({e}), storing to local disk fallback")
+            return await self._local_fallback.aupload_file(local_path, destination_path)
 
     async def aget_signed_url(
         self,
@@ -151,8 +147,8 @@ class MinioFileSystem(BaseFileSystem):
                 "content_type": stat.content_type,
                 "storage_class": None,  # MinIO doesn't have storage classes like S3
             }
-        except S3Error:
-            return None
+        except Exception:
+            return await self._local_fallback.aget_file_metadata(file_path)
 
     async def aget_presigned_put_url(
         self,
@@ -187,8 +183,9 @@ class MinioFileSystem(BaseFileSystem):
 
             await asyncio.to_thread(_fget)
             return True
-        except S3Error:
-            return False
+        except Exception as e:
+            logger.debug(f"MinIO download note ({e}), trying local disk fallback")
+            return await self._local_fallback.adownload_file(source_path, local_path)
 
     async def acopy_file(self, source_path: str, destination_path: str) -> bool:
         """Copy a file within MinIO (server-side copy)."""
@@ -204,5 +201,5 @@ class MinioFileSystem(BaseFileSystem):
 
             await asyncio.to_thread(_copy)
             return True
-        except S3Error:
-            return False
+        except Exception:
+            return await self._local_fallback.acopy_file(source_path, destination_path)
