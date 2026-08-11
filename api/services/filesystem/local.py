@@ -93,3 +93,61 @@ class LocalFileSystem(BaseFileSystem):
             return f"/files/{temp_filename}"
         except Exception:
             return None
+
+    async def aget_file_metadata(self, file_path: str) -> Optional[dict]:
+        try:
+            full_path = self._get_full_path(file_path)
+            if not os.path.exists(full_path):
+                return None
+            stat = os.stat(full_path)
+            return {
+                "size": stat.st_size,
+                "created_at": datetime.fromtimestamp(stat.st_ctime),
+                "modified_at": datetime.fromtimestamp(stat.st_mtime),
+                "etag": None,
+                "content_type": None,
+            }
+        except Exception:
+            return None
+
+    async def aget_presigned_put_url(
+        self,
+        file_path: str,
+        expiration: int = 900,
+        content_type: str = "text/csv",
+        max_size: int = 10_485_760,
+    ) -> Optional[str]:
+        return None
+
+    async def adownload_file(self, source_path: str, local_path: str) -> bool:
+        try:
+            full_source_path = self._get_full_path(source_path)
+            if not os.path.exists(full_source_path):
+                return False
+            if full_source_path == local_path:
+                return True
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            async with (
+                aiofiles.open(full_source_path, "rb") as src,
+                aiofiles.open(local_path, "wb") as dst,
+            ):
+                await dst.write(await src.read())
+            return True
+        except Exception:
+            return False
+
+    async def acopy_file(self, source_path: str, destination_path: str) -> bool:
+        try:
+            full_src = self._get_full_path(source_path)
+            full_dst = self._get_full_path(destination_path)
+            if not os.path.exists(full_src):
+                return False
+            os.makedirs(os.path.dirname(full_dst), exist_ok=True)
+            async with (
+                aiofiles.open(full_src, "rb") as src,
+                aiofiles.open(full_dst, "wb") as dst,
+            ):
+                await dst.write(await src.read())
+            return True
+        except Exception:
+            return False
