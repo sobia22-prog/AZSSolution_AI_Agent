@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { Eye, FileText, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -11,6 +11,13 @@ import {
 import type { DocumentResponseSchema } from '@/client/types.gen';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import logger from '@/lib/logger';
@@ -19,11 +26,32 @@ interface DocumentListProps {
   refreshTrigger: number;
 }
 
+interface DocumentViewData {
+  document_uuid: string;
+  filename: string;
+  file_size_bytes: number;
+  processing_status: string;
+  retrieval_mode: string;
+  full_text: string;
+  total_chunks: number;
+  chunks: Array<{
+    chunk_index: number;
+    chunk_text: string;
+    contextualized_text?: string;
+    token_count?: number;
+  }>;
+}
+
 export default function DocumentList({ refreshTrigger }: DocumentListProps) {
   const [documents, setDocuments] = useState<DocumentResponseSchema[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // Document viewing modal state
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [isViewingLoading, setIsViewingLoading] = useState(false);
+  const [viewingDoc, setViewingDoc] = useState<DocumentViewData | null>(null);
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -50,12 +78,10 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
     }
   }, []);
 
-  // Fetch documents on mount and when refreshTrigger changes
   useEffect(() => {
     fetchDocuments();
   }, [fetchDocuments, refreshTrigger]);
 
-  // Poll for documents that are processing
   useEffect(() => {
     const processingDocs = documents.filter(
       (doc) => doc.processing_status === 'processing' || doc.processing_status === 'pending'
@@ -66,7 +92,7 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
     const pollInterval = setInterval(() => {
       logger.info(`Polling for ${processingDocs.length} processing documents...`);
       fetchDocuments();
-    }, 5000); // Poll every 5 seconds
+    }, 5000);
 
     return () => clearInterval(pollInterval);
   }, [documents, fetchDocuments]);
@@ -90,6 +116,26 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete document');
       logger.error('Error deleting document:', err);
+    }
+  };
+
+  const handleViewDocument = async (documentUuid: string) => {
+    try {
+      setIsViewingLoading(true);
+      setViewingDoc(null);
+      setViewModalOpen(true);
+
+      const res = await fetch(`/api/v1/knowledge-base/documents/${documentUuid}/view`);
+      if (!res.ok) {
+        throw new Error('Failed to load document text');
+      }
+      const data: DocumentViewData = await res.json();
+      setViewingDoc(data);
+    } catch (err) {
+      toast.error('Failed to view document content');
+      logger.error('Error viewing document:', err);
+    } finally {
+      setIsViewingLoading(false);
     }
   };
 
@@ -219,27 +265,108 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
                       Error: {doc.processing_error}
                     </p>
                   )}
-                  {doc.docling_metadata &&
-                   typeof doc.docling_metadata === 'object' &&
-                   'duplicate_of' in doc.docling_metadata && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Duplicate of another document
-                    </p>
-                  )}
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleDelete(doc.document_uuid, doc.filename)}
-                className="text-destructive hover:text-destructive/90"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleViewDocument(doc.document_uuid)}
+                  title="View Document"
+                >
+                  <Eye className="w-4 h-4 mr-1" />
+                  View
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDelete(doc.document_uuid, doc.filename)}
+                  className="text-destructive hover:text-destructive/90"
+                  title="Delete Document"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           ))}
         </div>
       )}
+
+      {/* View Document Modal */}
+      <Dialog open={viewModalOpen} onOpenChange={setViewModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary" />
+              <span>{viewingDoc?.filename || 'View Document'}</span>
+            </DialogTitle>
+            <DialogDescription>
+              {viewingDoc ? (
+                <span className="flex items-center gap-2 mt-1">
+                  <span>{formatFileSize(viewingDoc.file_size_bytes)}</span>
+                  <span>•</span>
+                  <span>Mode: {viewingDoc.retrieval_mode}</span>
+                  <span>•</span>
+                  <span>Status: {viewingDoc.processing_status}</span>
+                </span>
+              ) : (
+                'Loading document details...'
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto my-4 space-y-4 p-4 border rounded-lg bg-muted/20">
+            {isViewingLoading ? (
+              <div className="space-y-3 py-6 text-center">
+                <Skeleton className="h-4 w-3/4 mx-auto" />
+                <Skeleton className="h-4 w-1/2 mx-auto" />
+                <Skeleton className="h-4 w-5/6 mx-auto" />
+              </div>
+            ) : viewingDoc ? (
+              viewingDoc.full_text ? (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Document Full Text Content
+                  </h4>
+                  <pre className="text-sm whitespace-pre-wrap font-sans text-foreground leading-relaxed">
+                    {viewingDoc.full_text}
+                  </pre>
+                </div>
+              ) : viewingDoc.chunks && viewingDoc.chunks.length > 0 ? (
+                <div className="space-y-4">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Extracted Chunks ({viewingDoc.chunks.length})
+                  </h4>
+                  {viewingDoc.chunks.map((chunk) => (
+                    <div
+                      key={chunk.chunk_index}
+                      className="p-3 border rounded bg-background space-y-1 text-sm"
+                    >
+                      <div className="flex justify-between items-center text-xs text-muted-foreground font-mono">
+                        <span>Chunk #{chunk.chunk_index + 1}</span>
+                        {chunk.token_count && <span>{chunk.token_count} tokens</span>}
+                      </div>
+                      <p className="whitespace-pre-wrap">{chunk.chunk_text}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No text content extracted for this document yet.
+                </div>
+              )
+            ) : null}
+          </div>
+
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setViewModalOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

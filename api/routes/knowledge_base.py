@@ -337,6 +337,55 @@ async def get_document(
         raise HTTPException(status_code=500, detail="Failed to get document") from exc
 
 
+@router.get(
+    "/documents/{document_uuid}/view",
+    summary="View document content",
+)
+async def view_document_content(
+    document_uuid: str,
+    user=Depends(get_user),
+):
+    """View full extracted text and chunk data for a document."""
+    try:
+        document = await db_client.get_document_by_uuid(
+            document_uuid=document_uuid,
+            organization_id=user.selected_organization_id,
+        )
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        chunks = await db_client.get_chunks_for_document(
+            document_id=document.id,
+            organization_id=user.selected_organization_id,
+        )
+
+        chunk_data = [
+            {
+                "chunk_index": c.chunk_index,
+                "chunk_text": c.chunk_text,
+                "contextualized_text": c.contextualized_text,
+                "token_count": c.token_count,
+            }
+            for c in chunks
+        ]
+
+        return {
+            "document_uuid": document.document_uuid,
+            "filename": document.filename,
+            "file_size_bytes": document.file_size_bytes,
+            "processing_status": document.processing_status,
+            "retrieval_mode": document.retrieval_mode,
+            "full_text": document.full_text or "",
+            "total_chunks": len(chunk_data),
+            "chunks": chunk_data,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error viewing document content: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve document content") from exc
+
+
 @router.delete(
     "/documents/{document_uuid}",
     summary="Delete document",
