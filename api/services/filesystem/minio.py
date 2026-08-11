@@ -52,7 +52,7 @@ class MinioFileSystem(BaseFileSystem):
         import tempfile
         from .local import LocalFileSystem
         storage_dir = os.getenv(
-            "DOGRAH_STORAGE_DIR", os.path.join(tempfile.gettempdir(), "dograh_storage")
+            "STORAGE_DIR", os.getenv("AZS_STORAGE_DIR", os.path.join(tempfile.gettempdir(), "azs_storage"))
         )
         self._local_fallback = LocalFileSystem(storage_dir)
 
