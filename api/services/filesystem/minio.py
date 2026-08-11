@@ -48,6 +48,14 @@ class MinioFileSystem(BaseFileSystem):
         self.access_key = access_key
         self.secret_key = secret_key
 
+        import os
+        import tempfile
+        from .local import LocalFileSystem
+        storage_dir = os.getenv(
+            "DOGRAH_STORAGE_DIR", os.path.join(tempfile.gettempdir(), "dograh_storage")
+        )
+        self._local_fallback = LocalFileSystem(storage_dir)
+
         # Client for internal operations (uploads, etc.)
         self.client = Minio(
             endpoint, access_key=access_key, secret_key=secret_key, secure=secure
