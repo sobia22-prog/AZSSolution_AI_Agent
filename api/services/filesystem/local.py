@@ -29,8 +29,14 @@ class LocalFileSystem(BaseFileSystem):
             full_path = self._get_full_path(file_path)
             os.makedirs(os.path.dirname(full_path), exist_ok=True)
 
+            read_res = content.read()
+            if asyncio.iscoroutine(read_res):
+                data = await read_res
+            else:
+                data = read_res or b""
+
             async with aiofiles.open(full_path, "wb") as f:
-                await f.write(await content.read())
+                await f.write(data)
             return True
         except Exception:
             return False

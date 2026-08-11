@@ -90,23 +90,31 @@ class MinioFileSystem(BaseFileSystem):
             pass
 
     async def acreate_file(self, file_path: str, content: BinaryIO) -> bool:
+        raw_bytes = b""
         try:
-            data = await content.read()
+            read_res = content.read()
+            if asyncio.iscoroutine(read_res):
+                raw_bytes = await read_res
+            else:
+                raw_bytes = read_res or b""
 
             def _put():
+                import io
                 self.client.put_object(
                     self.bucket_name,
                     file_path,
-                    data=bytes(data),
-                    length=len(data),
+                    data=io.BytesIO(raw_bytes),
+                    length=len(raw_bytes),
                 )
 
             await asyncio.to_thread(_put)
-            await self._local_fallback.acreate_file(file_path, content)
+            import io
+            await self._local_fallback.acreate_file(file_path, io.BytesIO(raw_bytes))
             return True
         except Exception as e:
             logger.warning(f"MinIO create_file note ({e}), using local disk fallback")
-            return await self._local_fallback.acreate_file(file_path, content)
+            import io
+            return await self._local_fallback.acreate_file(file_path, io.BytesIO(raw_bytes))
 
     async def aupload_file(self, local_path: str, destination_path: str) -> bool:
         try:
