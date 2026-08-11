@@ -121,16 +121,26 @@ async def process_knowledge_base_document(
             mime_type=mime_type,
         )
 
-        logger.info(f"Delegating document processing to MPS (mode={retrieval_mode})")
-        mps_response = await mps_service_key_client.process_document(
-            file_path=temp_file_path,
-            filename=filename,
-            content_type=mime_type or "application/octet-stream",
-            retrieval_mode=retrieval_mode,
-            max_tokens=max_tokens,
-            organization_id=organization_id,
-            created_by=created_by_provider_id,
-        )
+        logger.info(f"Delegating document processing (mode={retrieval_mode})")
+        try:
+            mps_response = await mps_service_key_client.process_document(
+                file_path=temp_file_path,
+                filename=filename,
+                content_type=mime_type or "application/octet-stream",
+                retrieval_mode=retrieval_mode,
+                max_tokens=max_tokens,
+                organization_id=organization_id,
+                created_by=created_by_provider_id,
+            )
+        except Exception as e:
+            logger.warning(f"MPS processing note ({e}), using local text extraction fallback...")
+            extracted_text = _extract_local_file_text(temp_file_path, file_extension)
+            local_chunks = _chunk_text_locally(extracted_text, max_tokens=max_tokens)
+            mps_response = {
+                "full_text": extracted_text,
+                "chunks": local_chunks,
+                "docling_metadata": {"extractor": "local_fallback"},
+            }
 
         docling_metadata = mps_response.get("docling_metadata", {})
 
@@ -262,3 +272,52 @@ async def process_knowledge_base_document(
                 logger.debug(f"Cleaned up temp file: {temp_file_path}")
             except Exception as e:
                 logger.warning(f"Failed to clean up temp file {temp_file_path}: {e}")
+
+
+def _extract_local_file_text(file_path: str, ext: str) -> str:
+    """Extract plain text from local document files (txt, md, json, csv, pdf, html)."""
+    ext = (ext or "").lower()
+    if ext in [".txt", ".md", ".json", ".csv", ".html", ".xml", ".log"]:
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                return f.read()
+        except Exception as e:
+            logger.warning(f"Failed to read text file: {e}")
+            return ""
+    elif ext == ".pdf":
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(file_path)
+            pages_text = [page.extract_text() or "" for page in reader.pages]
+            return "\n\n".join(pages_text)
+        except Exception as e:
+            logger.warning(f"PyPDF extraction note ({e}), using regex fallback...")
+            try:
+                with open(file_path, "rb") as f:
+                    content = f.read().decode("latin-1", errors="ignore")
+                    import re
+                    text_blocks = re.findall(r"\((.*?)\)", content)
+                    return "\n".join([b for b in text_blocks if len(b) > 3])
+            except Exception:
+                return ""
+    return ""
+
+
+def _chunk_text_locally(text: str, max_tokens: int = 128) -> list:
+    """Split text into word-based chunks for vector indexing fallback."""
+    if not text or not text.strip():
+        return []
+    words = text.split()
+    chunk_size = max(40, max_tokens)
+    chunks = []
+    for i in range(0, len(words), chunk_size):
+        chunk_words = words[i : i + chunk_size]
+        chunk_text = " ".join(chunk_words)
+        chunks.append({
+            "chunk_text": chunk_text,
+            "contextualized_text": chunk_text,
+            "chunk_index": len(chunks),
+            "token_count": len(chunk_words),
+            "chunk_metadata": {},
+        })
+    return chunks

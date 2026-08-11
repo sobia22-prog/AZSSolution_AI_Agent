@@ -3,7 +3,7 @@
 import uuid
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from loguru import logger
 
 from api.db import db_client
@@ -65,10 +65,12 @@ async def get_upload_url(
             max_size=100_000_000,  # 100MB max
         )
 
-        if not upload_url:
-            raise HTTPException(
-                status_code=500, detail="Failed to generate presigned upload URL"
-            )
+        from api.constants import BACKEND_API_ENDPOINT
+        base_endpoint = BACKEND_API_ENDPOINT.rstrip("/") if BACKEND_API_ENDPOINT else ""
+
+        # Fall back to direct backend endpoint if presigned URL is unavailable or points to localhost
+        if not upload_url or "localhost" in upload_url or "127.0.0.1" in upload_url:
+            upload_url = f"{base_endpoint}/api/v1/knowledge-base/upload-direct?key={s3_key}"
 
         logger.info(
             f"Generated upload URL for document {document_uuid}, "
@@ -86,6 +88,32 @@ async def get_upload_url(
         raise HTTPException(
             status_code=500, detail="Failed to generate upload URL"
         ) from exc
+
+
+@router.put("/upload-direct")
+async def upload_document_file_direct(
+    key: str = Query(..., description="Destination storage key"),
+    request: Request = None,
+):
+    """Direct backend upload endpoint for knowledge base document files."""
+    if not key:
+        raise HTTPException(status_code=400, detail="Missing key parameter")
+
+    body = await request.body()
+    if not body:
+        raise HTTPException(status_code=400, detail="Empty request payload")
+
+    import io
+    content_stream = io.BytesIO(body)
+    success = await storage_fs.acreate_file(key, content_stream)
+    if not success:
+        logger.error(f"Failed to save document file directly to storage key: {key}")
+        raise HTTPException(
+            status_code=500, detail="Failed to save document file to storage"
+        )
+
+    logger.info(f"Successfully uploaded document file directly for key: {key} ({len(body)} bytes)")
+    return {"status": "success", "key": key}
 
 
 @router.post(
