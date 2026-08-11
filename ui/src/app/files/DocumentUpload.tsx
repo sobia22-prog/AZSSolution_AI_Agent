@@ -13,7 +13,6 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { useAppConfig } from '@/context/AppConfigContext';
 import logger from '@/lib/logger';
 
 interface DocumentUploadProps {
@@ -24,7 +23,6 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_FILE_TYPES = ['.pdf', '.docx', '.doc', '.txt', '.json'];
 
 export default function DocumentUpload({ onUploadSuccess }: DocumentUploadProps) {
-  const { config } = useAppConfig();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [retrievalMode, setRetrievalMode] = useState<string>('full_document');
   const [uploading, setUploading] = useState(false);

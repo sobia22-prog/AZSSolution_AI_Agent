@@ -1,6 +1,6 @@
 'use client';
 
-import { Copy, Headphones, Link, Loader2 } from 'lucide-react';
+import { Headphones, Link, Loader2 } from 'lucide-react';
 import posthog from 'posthog-js';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
@@ -74,7 +74,7 @@ export function MediaPreviewDialog() {
         try {
             await navigator.clipboard.writeText(url);
             toast.success(`${label} copied to clipboard`);
-        } catch (err) {
+        } catch (_err) {
             toast.error(`Failed to copy ${label.toLowerCase()}`);
         }
     };
