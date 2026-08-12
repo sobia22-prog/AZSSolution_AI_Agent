@@ -41,7 +41,22 @@ export function useAudioPlayback() {
                 throw new Error("Failed to get audio URL");
             }
 
-            const audio = new Audio(result.data.url);
+            let audioUrl = result.data.url;
+
+            // If URL is relative (local storage serve endpoint), fetch with auth and create a blob URL
+            if (audioUrl.startsWith("/")) {
+                const { client } = await import("@/client/client.gen");
+                const res = await client.get<Blob>({
+                    url: audioUrl,
+                    parseAs: "blob",
+                });
+                if (!res.data) {
+                    throw new Error("Failed to fetch audio content");
+                }
+                audioUrl = URL.createObjectURL(res.data);
+            }
+
+            const audio = new Audio(audioUrl);
             audio.onended = () => {
                 audioRef.current = null;
                 setPlayingId(null);

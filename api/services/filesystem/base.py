@@ -111,3 +111,31 @@ class BaseFileSystem(ABC):
             bool: True if file was copied successfully, False otherwise
         """
         pass
+
+    async def adownload_to_bytes(self, file_path: str) -> Optional[bytes]:
+        """Download a file from storage and return its content as bytes.
+
+        Default implementation downloads to a temp file and reads it.
+        Subclasses may override for a more efficient implementation.
+
+        Args:
+            file_path: Path to the file in storage
+
+        Returns:
+            Optional[bytes]: File content, or None if not found
+        """
+        import tempfile
+        import os
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            tmp_path = tmp.name
+        try:
+            success = await self.adownload_file(file_path, tmp_path)
+            if not success or not os.path.exists(tmp_path):
+                return None
+            with open(tmp_path, "rb") as f:
+                return f.read()
+        finally:
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass

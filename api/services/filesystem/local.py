@@ -1,6 +1,4 @@
-import asyncio
 import os
-from datetime import datetime
 from typing import BinaryIO, Optional
 
 import aiofiles
@@ -65,38 +63,22 @@ class LocalFileSystem(BaseFileSystem):
             return False
 
     async def aget_signed_url(
-        self, file_path: str, expiration: int = 3600
+        self, file_path: str, expiration: int = 3600, **kwargs
     ) -> Optional[str]:
-        # For local filesystem, we'll create a temporary symlink with expiration
+        """Return a serve-file API URL for local files.
+
+        Rather than a real signed URL, we return a pointer to the
+        authenticated backend endpoint that will stream the file.
+        The file_path is base64-encoded so it can be used as a query param.
+        """
         try:
+            import base64
             full_path = self._get_full_path(file_path)
             if not os.path.exists(full_path):
                 return None
-
-            # Create a temporary directory for symlinks
-            temp_dir = os.path.join(self.base_path, ".temp_links")
-            os.makedirs(temp_dir, exist_ok=True)
-
-            # Generate a unique temporary filename
-            temp_filename = (
-                f"{datetime.now().timestamp()}_{os.path.basename(file_path)}"
-            )
-            temp_path = os.path.join(temp_dir, temp_filename)
-
-            # Create symlink
-            os.symlink(full_path, temp_path)
-
-            # Schedule deletion after expiration
-            async def delete_after_expiration():
-                await asyncio.sleep(expiration)
-                try:
-                    os.remove(temp_path)
-                except Exception:
-                    pass
-
-            asyncio.create_task(delete_after_expiration())
-
-            return f"/files/{temp_filename}"
+            # Encode the storage key so the serve endpoint can look it up
+            encoded_key = base64.urlsafe_b64encode(file_path.encode()).decode()
+            return f"/api/v1/workflow-recordings/serve-local?key={encoded_key}"
         except Exception:
             return None
 
@@ -157,3 +139,14 @@ class LocalFileSystem(BaseFileSystem):
             return True
         except Exception:
             return False
+
+    async def adownload_to_bytes(self, file_path: str) -> Optional[bytes]:
+        """Efficiently read a local file directly into bytes."""
+        try:
+            full_path = self._get_full_path(file_path)
+            if not os.path.exists(full_path):
+                return None
+            async with aiofiles.open(full_path, "rb") as f:
+                return await f.read()
+        except Exception:
+            return None

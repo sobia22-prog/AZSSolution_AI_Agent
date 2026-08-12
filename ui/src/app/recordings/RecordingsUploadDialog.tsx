@@ -215,6 +215,7 @@ export const RecordingsUploadDialog = ({
         setError(null);
 
         try {
+            // Try presigned URL path first (MinIO/S3)
             const uploadUrlResponse = await getUploadUrlsApiV1WorkflowRecordingsUploadUrlPost({
                 body: {
                     files: ready.map((p) => ({
@@ -225,41 +226,69 @@ export const RecordingsUploadDialog = ({
                 },
             });
 
-            if (!uploadUrlResponse.data?.items) {
-                throw new Error("Failed to get upload URLs");
-            }
+            const items = uploadUrlResponse.data?.items;
+            const hasPresignedUrls = items && items.length > 0 && items[0].upload_url;
 
-            const items = uploadUrlResponse.data.items;
+            if (hasPresignedUrls) {
+                // Presigned URL path (MinIO/S3)
+                await Promise.all(
+                    items!.map(async (item: RecordingUploadResponseSchema, idx: number) => {
+                        const file = ready[idx].file;
+                        const uploadResponse = await fetch(item.upload_url, {
+                            method: "PUT",
+                            body: file,
+                            headers: { "Content-Type": file.type || "audio/wav" },
+                        });
+                        if (!uploadResponse.ok) {
+                            throw new Error(`File upload failed for ${file.name}`);
+                        }
+                    })
+                );
 
-            await Promise.all(
-                items.map(async (item: RecordingUploadResponseSchema, idx: number) => {
-                    const file = ready[idx].file;
-                    const uploadResponse = await fetch(item.upload_url, {
-                        method: "PUT",
-                        body: file,
-                        headers: { "Content-Type": file.type || "audio/wav" },
-                    });
-                    if (!uploadResponse.ok) {
-                        throw new Error(`File upload failed for ${file.name}`);
-                    }
-                })
-            );
-
-            await createRecordingsApiV1WorkflowRecordingsPost({
-                body: {
-                    recordings: items.map((item: RecordingUploadResponseSchema, idx: number) => ({
-                        recording_id: item.recording_id,
-                        transcript: ready[idx].transcript.trim(),
-                        storage_key: item.storage_key,
-                        metadata: {
-                            original_filename: ready[idx].file.name,
-                            file_size_bytes: ready[idx].file.size,
-                            mime_type: ready[idx].file.type,
+                await createRecordingsApiV1WorkflowRecordingsPost({
+                    body: {
+                        recordings: items!.map((item: RecordingUploadResponseSchema, idx: number) => ({
+                            recording_id: item.recording_id,
+                            transcript: ready[idx].transcript.trim(),
+                            storage_key: item.storage_key,
+                            metadata: {
+                                original_filename: ready[idx].file.name,
+                                file_size_bytes: ready[idx].file.size,
+                                mime_type: ready[idx].file.type,
+                                language,
+                            },
+                        })),
+                    },
+                });
+            } else {
+                // Direct upload fallback (local storage)
+                const formData = new FormData();
+                ready.forEach((p) => formData.append("files", p.file));
+                formData.append(
+                    "transcripts",
+                    JSON.stringify(ready.map((p) => p.transcript.trim()))
+                );
+                formData.append(
+                    "metadata_json",
+                    JSON.stringify(
+                        ready.map((p) => ({
+                            original_filename: p.file.name,
+                            file_size_bytes: p.file.size,
+                            mime_type: p.file.type,
                             language,
-                        },
-                    })),
-                },
-            });
+                        }))
+                    )
+                );
+
+                const { client } = await import("@/client/client.gen");
+                const res = await client.post({
+                    url: "/api/v1/workflow-recordings/upload-direct",
+                    body: formData,
+                });
+                if (res.error) {
+                    throw new Error("Direct upload failed");
+                }
+            }
 
             setPendingFiles([]);
             setLanguage("multi");
@@ -273,6 +302,7 @@ export const RecordingsUploadDialog = ({
             setUploading(false);
         }
     };
+
 
     const isRecording = recordingStep === "recording";
     const anyTranscribing = pendingFiles.some((p) => p.isTranscribing);

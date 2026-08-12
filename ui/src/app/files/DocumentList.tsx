@@ -8,6 +8,7 @@ import {
   deleteDocumentApiV1KnowledgeBaseDocumentsDocumentUuidDelete,
   listDocumentsApiV1KnowledgeBaseDocumentsGet,
 } from '@/client/sdk.gen';
+import { client } from '@/client/client.gen';
 import type { DocumentResponseSchema } from '@/client/types.gen';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -125,11 +126,14 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
       setViewingDoc(null);
       setViewModalOpen(true);
 
-      const res = await fetch(`/api/v1/knowledge-base/documents/${documentUuid}/view`);
-      if (!res.ok) {
+      const res = await client.get<DocumentViewData>({
+        url: '/api/v1/knowledge-base/documents/{document_uuid}/view',
+        path: { document_uuid: documentUuid },
+      });
+      if (res.error || !res.data) {
         throw new Error('Failed to load document text');
       }
-      const data: DocumentViewData = await res.json();
+      const data: DocumentViewData = res.data;
       setViewingDoc(data);
     } catch (err) {
       toast.error('Failed to view document content');
