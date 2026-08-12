@@ -74,7 +74,7 @@ export function MediaPreviewDialog() {
         try {
             await navigator.clipboard.writeText(url);
             toast.success(`${label} copied to clipboard`);
-        } catch (_err) {
+        } catch {
             toast.error(`Failed to copy ${label.toLowerCase()}`);
         }
     };
